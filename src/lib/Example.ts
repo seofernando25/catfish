@@ -1,230 +1,348 @@
 import Phaser from "phaser";
-import { COAL_COLOR, DIAMOND_COLOR, DIRT_COLOR, IRON_COLOR, LAKE_COLOR, sample } from "./world";
 
-export default class Example extends Phaser.Scene
-{
-	
-	left: Phaser.Input.Keyboard.Key | undefined;
-	right: Phaser.Input.Keyboard.Key | undefined;
-	up: Phaser.Input.Keyboard.Key | undefined;
-	down: Phaser.Input.Keyboard.Key | undefined;
-	tileSize = 16;
-	chunkSize = 128;
-	player = {
-		x: 0,
-		y: 0,
-		graphic: undefined as Phaser.GameObjects.Graphics | undefined
-	}
-	preload ()
-	{
-        this.load.image('roguelikeSheet', 'roguelike/roguelikeSheet_transparent.png');
-        this.left = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-		this.right = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D);
-		this.up = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.W);
-		this.down = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.S);
-		
-	}
-	
+import waterImage from "../assets/water/water.png";
+import dirtImage from "../assets/dirt/dirt.png";
+import sandImage from "../assets/sand/sand.png";
 
+import { BehaviorSubject, combineLatest } from "rxjs";
+import { throttleTime } from "rxjs/operators";
+import { TileMapManager } from "./tilemap";
 
-	
+export default class Example extends Phaser.Scene {
+    left: Phaser.Input.Keyboard.Key | undefined;
+    right: Phaser.Input.Keyboard.Key | undefined;
+    up: Phaser.Input.Keyboard.Key | undefined;
+    down: Phaser.Input.Keyboard.Key | undefined;
+    chunkSize = 32;
+    player = {
+        xSubject: new BehaviorSubject(0),
+        ySubject: new BehaviorSubject(0),
+        gameThis: this,
+        // Subscribe to throttled position changes
+        init() {
+            combineLatest([this.xSubject, this.ySubject])
+                .pipe(throttleTime(100)) // Throttle updates for combined `x` and `y`
+                .subscribe(([x, y]) => {
+                    this.gameThis.updatePosition();
+                });
+        },
 
+        set x(x) {
+            this.xSubject.next(x); // Emit the new `x` value
+        },
 
-	tileCoordsToChunkCoords(x: number, y: number) {
-		return [Math.floor(x / this.chunkSize), Math.floor(y / this.chunkSize)];
-	}
+        get x() {
+            return this.xSubject.getValue(); // Get the current `x` value from the subject
+        },
 
-	worldCoordsToTileCoords(x: number, y: number) {
-		return [Math.floor(x / this.tileSize), Math.floor(y / this.tileSize)];
-	}
+        set y(y) {
+            this.ySubject.next(y); // Emit the new `y` value
+        },
 
-	
+        get y() {
+            return this.ySubject.getValue(); // Get the current `y` value from the subject
+        },
+    };
+    preload() {
+        // this.load.image("waterTileset", waterImage);
+        this.load.spritesheet("waterTileset", waterImage, {
+            frameWidth: 16,
+            frameHeight: 16,
+        });
+        this.load.spritesheet("dirtTileset", dirtImage, {
+            frameWidth: 16,
+            frameHeight: 16,
+        });
+        this.load.spritesheet("sandTileset", sandImage, {
+            frameWidth: 16,
+            frameHeight: 16,
+        });
 
-	
+        this.left = this.input.keyboard?.addKey(
+            Phaser.Input.Keyboard.KeyCodes.A
+        );
+        this.right = this.input.keyboard?.addKey(
+            Phaser.Input.Keyboard.KeyCodes.D
+        );
+        this.up = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.W);
+        this.down = this.input.keyboard?.addKey(
+            Phaser.Input.Keyboard.KeyCodes.S
+        );
+    }
 
-	update(time: number, delta: number) {
-		this.createIntersecting();
-		const camera = this.cameras.main;
-		const playerSpeed = 340;
-		const deltaSeconds = delta / 1000;
-	
-		let moveX = 0;
-		let moveY = 0;
+    worldCoordsToChunkCoords(x: number, y: number) {
+        return [Math.floor(x / this.chunkSize), Math.floor(y / this.chunkSize)];
+    }
 
-		if (this.left?.isDown) {
-			moveX -= 1 ;
-		} else if (this.right?.isDown) {
-			moveX += 1 ;
-		}
-	
-		if (this.up?.isDown) {
-			moveY -= 1 ;	
-		} else if (this.down?.isDown) {
-			moveY += 1 ;
-		}
+    update(time: number, delta: number) {
+        this.createIntersecting();
+        const camera = this.cameras.main;
+        const playerSpeed = 500;
+        const deltaSeconds = delta / 1000;
 
-		const length = Math.sqrt(moveX * moveX + moveY * moveY);
-		if (length > 0) {
-			moveX /= length;
-			moveY /= length;
-		}
+        let moveX = 0;
+        let moveY = 0;
 
-		this.player.x += moveX * playerSpeed * deltaSeconds;
-		this.player.y += moveY * playerSpeed * deltaSeconds;
-		this.player.graphic?.setPosition(this.player.x, this.player.y);
+        if (this.left?.isDown) {
+            moveX -= 1;
+        } else if (this.right?.isDown) {
+            moveX += 1;
+        }
 
-		
-		camera.centerOn(this.player.x, this.player.y);
-	}
+        if (this.up?.isDown) {
+            moveY -= 1;
+        } else if (this.down?.isDown) {
+            moveY += 1;
+        }
 
-	private activeTiles = new Map<string, Phaser.Tilemaps.Tilemap>();
-	genTile(offsetX: number, offsetY: number) {
-		const key = offsetX + "_" + offsetY
-		if (this.activeTiles.get(key)) {
-			return;
-		}
+        const length = Math.sqrt(moveX * moveX + moveY * moveY);
+        if (length > 0) {
+            moveX /= length;
+            moveY /= length;
 
-		
-		const map = this.make.tilemap({ 
-			tileWidth: this.tileSize,
-			tileHeight: this.tileSize,
-			width: this.chunkSize,
-			height: this.chunkSize,
-		 });
+            this.player.x += moveX * playerSpeed * deltaSeconds;
+            let [tileX, tileY] = [this.player.x, this.player.y];
+            let [chunkX, chunkY] = this.worldCoordsToChunkCoords(tileX, tileY);
+            // Get chunk
+            let key = chunkX + "_" + chunkY;
+            let map = this.activeTiles.get(key);
+            if (map) {
+                // Convert tile coords to chunk coords
+                const chunkTileX = tileX - chunkX * this.chunkSize;
+                const chunkTileY = tileY - chunkY * this.chunkSize;
+                // Check if in water
+                const tile = map.getTileAt(
+                    chunkTileX,
+                    chunkTileY,
+                    true,
+                    "water"
+                );
+                if (tile?.index !== -1) {
+                    this.player.x -= moveX * playerSpeed * deltaSeconds;
+                }
+            }
 
-		 this.activeTiles.set(key, map);
-		 
-		 const tileset = map.addTilesetImage('roguelikeSheet', undefined, this.tileSize, this.tileSize, 0, 1)!;
-		 
-		 const layer = map.createBlankLayer(key, tileset);
-		 if(layer) {
-			layer.x = offsetX * this.chunkSize * this.tileSize;
-			layer.y = offsetY * this.chunkSize * this.tileSize;
-		}
-		
-	
+            this.player.y += moveY * playerSpeed * deltaSeconds;
 
+            [tileX, tileY] = [this.player.x, this.player.y];
+            [chunkX, chunkY] = this.worldCoordsToChunkCoords(tileX, tileY);
+            // Get chunk
+            key = chunkX + "_" + chunkY;
+            map = this.activeTiles.get(key);
+            if (map) {
+                // Convert tile coords to chunk coords
+                const chunkTileX = tileX - chunkX * this.chunkSize;
+                const chunkTileY = tileY - chunkY * this.chunkSize;
+                // Check if in water
+                const tile = map.getTileAt(
+                    chunkTileX,
+                    chunkTileY,
+                    true,
+                    "water"
+                );
+                if (tile?.index !== -1) {
+                    this.player.y -= moveY * playerSpeed * deltaSeconds;
+                }
+            }
+        }
 
+        // If player is on water, move up
+        const [tileX, tileY] = [this.player.x, this.player.y];
+        const [chunkX, chunkY] = this.worldCoordsToChunkCoords(tileX, tileY);
+        // Get chunk
+        const key = chunkX + "_" + chunkY;
+        const map = this.activeTiles.get(key);
+        if (map) {
+            // Convert tile coords to chunk coords
+            const chunkTileX = tileX - chunkX * this.chunkSize;
+            const chunkTileY = tileY - chunkY * this.chunkSize;
+            // Check if in water
+            const tile = map.getTileAt(chunkTileX, chunkTileY, true, "water");
+            if (tile?.index === 1) {
+                this.player.y -= 100 * playerSpeed * deltaSeconds;
+                camera.centerOn(this.player.x, this.player.y);
+            }
+        }
 
+        camera.centerOn(this.player.x, this.player.y);
+    }
 
-		for (let i = 0; i < this.chunkSize; i++) {
-			for (let j = 0; j < this.chunkSize; j++) {
-				// Chunck coords to tile coords
-				const x = offsetX * this.chunkSize + i;
-				const y = offsetY * this.chunkSize + j;
-				const c = sample(x, y);
-				let idx= 0;
-				switch(c) {
-					case "coal":
-						idx = 48;
-						break;
-					case "iron":
-						idx = 65;
-						break;
-					case "diamond":
-						idx = 2;
-						break;
-					case "dirt":
-						idx = 63;
-						break;
-					case "lake":
-						idx = 1;
-						break;
-				}
-				
-				layer?.putTileAt(idx, i, j, false);
-			}
-		}
-		// recalc faces
-	}
+    private activeTiles = new Map<string, Phaser.Tilemaps.Tilemap>();
 
-	createIntersecting() {
-		const camera = this.cameras.main;
-		// Top-left corner
-		const topLeftX = camera.worldView.x;
-		const topLeftY = camera.worldView.y;
+    dirtPipeline: Phaser.Renderer.WebGL.WebGLPipeline | undefined;
+    waterPipeline: Phaser.Renderer.WebGL.WebGLPipeline | undefined;
 
-		// Top-right corner
-		const topRightX = camera.worldView.x + camera.worldView.width;
-		const topRightY = camera.worldView.y;
+    createIntersecting() {
+        const camera = this.cameras.main;
+        // Top-left corner
+        const topLeftX = camera.worldView.x;
+        const topLeftY = camera.worldView.y;
 
-		// Bottom-left corner
-		const bottomLeftX = camera.worldView.x;
-		const bottomLeftY = camera.worldView.y + camera.worldView.height;
+        // Bottom right corner
+        const bottomRightX = camera.worldView.x + camera.worldView.width;
+        const bottomRightY = camera.worldView.y + camera.worldView.height;
 
-		const topLeftTileCoords = this.worldCoordsToTileCoords(topLeftX, topLeftY);
-		const topRightTileCoords = this.worldCoordsToTileCoords(topRightX, topRightY);
-		const bottomLeftTileCoords = this.worldCoordsToTileCoords(bottomLeftX, bottomLeftY);
+        if (this.wsClient?.readyState !== WebSocket.OPEN) {
+            console.log("Websocket not open");
+            return;
+        }
 
-		// const topLeftChunk = this.tileCoordsToChunkCoords(topLeftX, topLeftY);
-		// const topRightChunk = this.tileCoordsToChunkCoords(topRightX, topRightY);
-		// const bottomLeftChunk = this.tileCoordsToChunkCoords(bottomLeftX, bottomLeftY);
-		const topLeftChunk = this.tileCoordsToChunkCoords(topLeftTileCoords[0], topLeftTileCoords[1]);
-		const topRightChunk = this.tileCoordsToChunkCoords(topRightTileCoords[0], topRightTileCoords[1]);
-		const bottomLeftChunk = this.tileCoordsToChunkCoords(bottomLeftTileCoords[0], bottomLeftTileCoords[1]);
-		const startX = topLeftChunk[0];
-		const endX = topRightChunk[0];
-		const startY = topLeftChunk[1];
-		const endY = bottomLeftChunk[1];
-		const xStep = Math.sign(endX - startX);
-		const yStep = Math.sign(endY - startY);
-		
-		const chunks = [];
-		for (let i = startX; i != endX + xStep; i += xStep) {
-			for (let j = startY; j != endY + yStep; j += yStep) {
-				chunks.push([i, j]);
-			}
-		}
+        // Get chunk coords
+        let [topLeftChunkX, topLeftChunkY] = this.worldCoordsToChunkCoords(
+            topLeftX,
+            topLeftY
+        );
 
-		// Clean up tiles that are not in view
-		const keys = Array.from(this.activeTiles.keys());
-		for (let i = 0; i < keys.length; i++) {
-			const key = keys[i];
-			const [x, y] = key.split("_").map(Number);
-			if (x < startX || x > endX || y < startY || y > endY) {
-				const map = this.activeTiles.get(key);
-				if (map) {
-					map.destroy();
-				}
-				this.activeTiles.delete(key);
-			}
-		}
+        const [bottomRightChunkX, bottomRightChunkY] =
+            this.worldCoordsToChunkCoords(bottomRightX, bottomRightY);
 
-		// Create new tiles
-		for (let i = 0; i < chunks.length; i++) {
-			const [x, y] = chunks[i];
-			this.genTile(x, y);
-		}
-	}
+        for (let x = topLeftChunkX; x <= bottomRightChunkX; x++) {
+            for (let y = topLeftChunkY; y <= bottomRightChunkY; y++) {
+                if (
+                    this.requestedChunks.has(`${x}_${y}`) ||
+                    this.tileMan?.getChunk(x, y) !== undefined
+                ) {
+                    continue;
+                }
+                this.requestedChunks.add(`${x}_${y}`);
+                // Request chunk
+                this.wsClient?.send(
+                    JSON.stringify({
+                        type: "chunk",
+                        x: x,
+                        y: y,
+                    })
+                );
+            }
+        }
+    }
+    requestedChunks = new Set<string>();
 
-	create ()
-	{
-		const startT = Date.now();
-		this.input.on('wheel', (pointer: Phaser.Input.Pointer, deltaX: number, deltaY: number, deltaZ: number) => {
-			const camera = this.cameras.main;
-			const zoomFactor = 0.05; // Adjust this to control zoom speed
-		
-			// Calculate the zoom change proportionally
-			const zoomChange = camera.zoom * zoomFactor;
-			const minZoom = 0.01;
-			const maxZoom = 2;
-			if (deltaZ > 0) {
-				camera.zoom = Phaser.Math.Clamp(camera.zoom - zoomChange, minZoom, maxZoom);
-			} else if (deltaZ < 0) {
-				camera.zoom = Phaser.Math.Clamp(camera.zoom + zoomChange, minZoom, maxZoom);
-			}
-		});
+    wsClient: WebSocket | undefined;
 
-		this.cameras.main.zoom = 1;
+    updatePosition() {
+        if (this.wsClient?.readyState !== WebSocket.OPEN) {
+            console.log("Websocket not open");
+            return;
+        }
+        console.log("Updating position");
 
-		// Draw a black square
-		const circle = this.add.graphics();
-		circle.fillStyle(0x000000, 1);
-		circle.fillRect(0, 0, 16 , 16);
-		circle.setDepth(999);
-		this.player.graphic = circle;
-		
-		
-		console.log("Time to generate: ", Date.now() - startT);
-	}
+        const payload = {
+            type: "player",
+            x: this.player.x,
+            y: this.player.y,
+        };
+        this.wsClient?.send(JSON.stringify(payload));
+    }
+
+    tileMan: TileMapManager | undefined;
+    create() {
+        this.tileMan = new TileMapManager(this);
+        console.log("Creating scene");
+        // window origin at ws
+        this.wsClient = new WebSocket(
+            document.location.origin.replace("http", "ws") + "/ws"
+        );
+        this.wsClient.onmessage = (event) => {
+            const message = JSON.parse(event.data.toString());
+            if (message.type === "player") {
+                const { id, x, y } = message;
+                players.set(id, { x, y });
+                drawPlayers();
+            } else if (message.type === "chunk") {
+                const { x, y, data } = message;
+                // Convert data to 2d array
+                const dataArr = (data as string)
+                    .split("\n")
+                    .map((row) => row.split(","))
+                    .map((row) => row.map((v) => parseInt(v)));
+
+                this.tileMan?.addChunk(x, y, dataArr);
+            } else {
+                console.log("Unrecognized message: ", message);
+            }
+        };
+
+        this.wsClient.onopen = (event) => {
+            console.log("Connection opened");
+            this.updatePosition();
+            this.createIntersecting();
+        };
+
+        // setTimeout(() => {
+        //     this.createIntersecting();
+        // }, 1000);
+
+        const players = new Map<string, { x: number; y: number }>();
+        const playerGraphic = this.add.graphics();
+        playerGraphic.setDepth(1000);
+        const drawPlayers = () => {
+            playerGraphic?.clear();
+            for (const [id, player] of players.entries()) {
+                playerGraphic?.fillStyle(0xff0000, 1);
+                playerGraphic?.fillCircle(player.x, player.y, 0.5);
+            }
+        };
+
+        this.player.init();
+        this.player.x = 0;
+        this.player.y = 0;
+
+        const startT = Date.now();
+        this.input.on(
+            "wheel",
+            (
+                pointer: Phaser.Input.Pointer,
+                deltaX: number,
+                deltaY: number,
+                deltaZ: number
+            ) => {
+                const camera = this.cameras.main;
+                const zoomFactor = 0.05; // Adjust this to control zoom speed
+
+                // Calculate the zoom change proportionally
+                const zoomChange = camera.zoom * zoomFactor;
+                const minZoom = 1;
+                const maxZoom = 10;
+                if (deltaZ > 0) {
+                    camera.zoom = Phaser.Math.Clamp(
+                        camera.zoom - zoomChange,
+                        minZoom,
+                        maxZoom
+                    );
+                } else if (deltaZ < 0) {
+                    camera.zoom = Phaser.Math.Clamp(
+                        camera.zoom + zoomChange,
+                        minZoom,
+                        maxZoom
+                    );
+                }
+            }
+        );
+
+        this.cameras.main.zoom = 10;
+
+        // Draw player
+        const frag = `
+        precision mediump float;
+
+        void main ()
+        {
+            gl_FragColor = vec4(1.0);
+        }
+        `;
+        const base = new Phaser.Display.BaseShader("simpleTexture", frag);
+
+        const shader = this.add.shader(base, 0, 0, 0.5, 0.5);
+        shader.setDepth(1000);
+        this.player.xSubject.subscribe((x) => {
+            shader.x = x;
+        });
+
+        this.player.ySubject.subscribe((y) => {
+            shader.y = y;
+        });
+
+        console.log("Time to generate: ", Date.now() - startT);
+    }
 }

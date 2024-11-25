@@ -7,12 +7,16 @@
     let clientWidth = $state(0);
     let clientHeight = $state(0);
     let game: Phaser.Game | null = $state(null);
+    let downScale = 1;
 
     $effect(() => {
         if (game) {
             // on resize end
 
-            game.scale.resize(clientWidth, clientHeight);
+            game.scale.setGameSize(
+                clientWidth / downScale,
+                clientHeight / downScale
+            );
         }
     });
 
@@ -21,8 +25,12 @@
             scene: Example,
             type: Phaser.AUTO,
             parent: gameEl,
-            width: clientWidth,
-            height: clientHeight,
+            width: clientWidth / downScale,
+            height: clientHeight / downScale,
+            // Fill
+            scale: {
+                mode: Phaser.Scale.FIT,
+            },
             pixelArt: true,
         });
         game.registry.destroy(); // destroy registry
