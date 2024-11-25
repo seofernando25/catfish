@@ -28,19 +28,19 @@ export default class Example extends Phaser.Scene {
         },
 
         set x(x) {
-            this.xSubject.next(x); // Emit the new `x` value
+            this.xSubject.next(x);
         },
 
         get x() {
-            return this.xSubject.getValue(); // Get the current `x` value from the subject
+            return this.xSubject.getValue();
         },
 
         set y(y) {
-            this.ySubject.next(y); // Emit the new `y` value
+            this.ySubject.next(y);
         },
 
         get y() {
-            return this.ySubject.getValue(); // Get the current `y` value from the subject
+            return this.ySubject.getValue();
         },
     };
     preload() {
@@ -77,7 +77,7 @@ export default class Example extends Phaser.Scene {
     update(time: number, delta: number) {
         this.createIntersecting();
         const camera = this.cameras.main;
-        const playerSpeed = 500;
+        const playerSpeed = 100;
         const deltaSeconds = delta / 1000;
 
         let moveX = 0;
@@ -100,68 +100,29 @@ export default class Example extends Phaser.Scene {
             moveX /= length;
             moveY /= length;
 
+            const predictedX =
+                this.player.x + moveX * playerSpeed * deltaSeconds;
+            const tile = this.tileMan?.getTile(predictedX, this.player.y);
+            // If tile == 0, then it's water, so don't move
+            if (tile === 0) {
+                moveX = 0;
+            }
+
+            const predictedY =
+                this.player.y + moveY * playerSpeed * deltaSeconds;
+            const tile2 = this.tileMan?.getTile(this.player.x, predictedY);
+            if (tile2 === 0) {
+                moveY = 0;
+            }
+
             this.player.x += moveX * playerSpeed * deltaSeconds;
-            let [tileX, tileY] = [this.player.x, this.player.y];
-            let [chunkX, chunkY] = this.worldCoordsToChunkCoords(tileX, tileY);
-            // Get chunk
-            let key = chunkX + "_" + chunkY;
-            let map = this.activeTiles.get(key);
-            if (map) {
-                // Convert tile coords to chunk coords
-                const chunkTileX = tileX - chunkX * this.chunkSize;
-                const chunkTileY = tileY - chunkY * this.chunkSize;
-                // Check if in water
-                const tile = map.getTileAt(
-                    chunkTileX,
-                    chunkTileY,
-                    true,
-                    "water"
-                );
-                if (tile?.index !== -1) {
-                    this.player.x -= moveX * playerSpeed * deltaSeconds;
-                }
-            }
-
             this.player.y += moveY * playerSpeed * deltaSeconds;
-
-            [tileX, tileY] = [this.player.x, this.player.y];
-            [chunkX, chunkY] = this.worldCoordsToChunkCoords(tileX, tileY);
-            // Get chunk
-            key = chunkX + "_" + chunkY;
-            map = this.activeTiles.get(key);
-            if (map) {
-                // Convert tile coords to chunk coords
-                const chunkTileX = tileX - chunkX * this.chunkSize;
-                const chunkTileY = tileY - chunkY * this.chunkSize;
-                // Check if in water
-                const tile = map.getTileAt(
-                    chunkTileX,
-                    chunkTileY,
-                    true,
-                    "water"
-                );
-                if (tile?.index !== -1) {
-                    this.player.y -= moveY * playerSpeed * deltaSeconds;
-                }
-            }
         }
 
         // If player is on water, move up
-        const [tileX, tileY] = [this.player.x, this.player.y];
-        const [chunkX, chunkY] = this.worldCoordsToChunkCoords(tileX, tileY);
-        // Get chunk
-        const key = chunkX + "_" + chunkY;
-        const map = this.activeTiles.get(key);
-        if (map) {
-            // Convert tile coords to chunk coords
-            const chunkTileX = tileX - chunkX * this.chunkSize;
-            const chunkTileY = tileY - chunkY * this.chunkSize;
-            // Check if in water
-            const tile = map.getTileAt(chunkTileX, chunkTileY, true, "water");
-            if (tile?.index === 1) {
-                this.player.y -= 100 * playerSpeed * deltaSeconds;
-                camera.centerOn(this.player.x, this.player.y);
-            }
+        const tile = this.tileMan?.getTile(this.player.x, this.player.y);
+        if (tile === 0) {
+            this.player.y -= 1 * playerSpeed * deltaSeconds;
         }
 
         camera.centerOn(this.player.x, this.player.y);
@@ -173,37 +134,30 @@ export default class Example extends Phaser.Scene {
     waterPipeline: Phaser.Renderer.WebGL.WebGLPipeline | undefined;
 
     createIntersecting() {
-        const camera = this.cameras.main;
-        // Top-left corner
-        const topLeftX = camera.worldView.x;
-        const topLeftY = camera.worldView.y;
-
-        // Bottom right corner
-        const bottomRightX = camera.worldView.x + camera.worldView.width;
-        const bottomRightY = camera.worldView.y + camera.worldView.height;
-
         if (this.wsClient?.readyState !== WebSocket.OPEN) {
             console.log("Websocket not open");
             return;
         }
 
-        // Get chunk coords
-        let [topLeftChunkX, topLeftChunkY] = this.worldCoordsToChunkCoords(
-            topLeftX,
-            topLeftY
+        // Get player chunk
+        const [playerChunkX, playerChunkY] = this.worldCoordsToChunkCoords(
+            this.player.x,
+            this.player.y
         );
 
-        const [bottomRightChunkX, bottomRightChunkY] =
-            this.worldCoordsToChunkCoords(bottomRightX, bottomRightY);
+        // Radius 5
+        const radius = 5;
+        const topLeftChunkX = playerChunkX - radius;
+        const topLeftChunkY = playerChunkY - radius;
+        const bottomRightChunkX = playerChunkX + radius;
+        const bottomRightChunkY = playerChunkY + radius;
 
         for (let x = topLeftChunkX; x <= bottomRightChunkX; x++) {
             for (let y = topLeftChunkY; y <= bottomRightChunkY; y++) {
-                if (
-                    this.requestedChunks.has(`${x}_${y}`) ||
-                    this.tileMan?.getChunk(x, y) !== undefined
-                ) {
+                if (this.requestedChunks.has(`${x}_${y}`)) {
                     continue;
                 }
+                console.log("Requesting chunk: ", x, y);
                 this.requestedChunks.add(`${x}_${y}`);
                 // Request chunk
                 this.wsClient?.send(
@@ -222,7 +176,6 @@ export default class Example extends Phaser.Scene {
 
     updatePosition() {
         if (this.wsClient?.readyState !== WebSocket.OPEN) {
-            console.log("Websocket not open");
             return;
         }
         console.log("Updating position");
@@ -257,6 +210,7 @@ export default class Example extends Phaser.Scene {
                     .map((row) => row.split(","))
                     .map((row) => row.map((v) => parseInt(v)));
 
+                console.log("Adding chunk: ", x, y);
                 this.tileMan?.addChunk(x, y, dataArr);
             } else {
                 console.log("Unrecognized message: ", message);
@@ -269,10 +223,6 @@ export default class Example extends Phaser.Scene {
             this.createIntersecting();
         };
 
-        // setTimeout(() => {
-        //     this.createIntersecting();
-        // }, 1000);
-
         const players = new Map<string, { x: number; y: number }>();
         const playerGraphic = this.add.graphics();
         playerGraphic.setDepth(1000);
@@ -284,9 +234,9 @@ export default class Example extends Phaser.Scene {
             }
         };
 
+        this.player.x = 5000;
+        this.player.y = 950;
         this.player.init();
-        this.player.x = 0;
-        this.player.y = 0;
 
         const startT = Date.now();
         this.input.on(
@@ -302,8 +252,8 @@ export default class Example extends Phaser.Scene {
 
                 // Calculate the zoom change proportionally
                 const zoomChange = camera.zoom * zoomFactor;
-                const minZoom = 1;
-                const maxZoom = 10;
+                const minZoom = 40;
+                const maxZoom = 50;
                 if (deltaZ > 0) {
                     camera.zoom = Phaser.Math.Clamp(
                         camera.zoom - zoomChange,
@@ -320,7 +270,7 @@ export default class Example extends Phaser.Scene {
             }
         );
 
-        this.cameras.main.zoom = 10;
+        this.cameras.main.zoom = 50;
 
         // Draw player
         const frag = `

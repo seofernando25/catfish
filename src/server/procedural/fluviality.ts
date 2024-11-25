@@ -1,19 +1,19 @@
 import { multi_octave_noise } from "./noise";
 
 export function sampleFluviality(x: number, y: number): number {
-    const coordX = x / 200.0;
-    const coordY = y / 200.0;
+    const coordX = x / 100.0;
+    const coordY = y / 100.0;
 
-    const noise = multi_octave_noise(coordX, coordY, 8, 0.5, 2.0);
-
-    const biasStart = 0.3;
-    const biasEnd = 0.4;
-    const shiftAmount = 0.5;
-
-    const biasFactor = Math.min(
-        Math.max((noise - biasStart) / (biasEnd - biasStart), 0),
-        1
+    const noise = multi_octave_noise(
+        coordX + 8655.453,
+        coordY + 2342.2342,
+        8,
+        0.5,
+        2.0
     );
+
+    const biasStart = 0.38;
+    const biasEnd = 0.4;
 
     if (noise >= biasStart && noise <= biasEnd) {
         return 0.0;

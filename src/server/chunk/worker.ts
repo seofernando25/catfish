@@ -7,7 +7,7 @@ import type {
 
 self.onmessage = (e: MessageEvent<WorkerTaskData>) => {
     const { taskId, chunkX, chunkY, chunkSize } = e.data;
-
+    console.log("Received task", taskId, chunkX, chunkY, chunkSize);
     const chunkXOffset = chunkX * chunkSize;
     const chunkYOffset = chunkY * chunkSize;
     const result = new Uint8Array(chunkSize * chunkSize);
@@ -20,5 +20,6 @@ self.onmessage = (e: MessageEvent<WorkerTaskData>) => {
     }
 
     const response: WorkerTaskResult = { taskId, result };
+    console.log("Task complete", taskId);
     self.postMessage(response);
 };

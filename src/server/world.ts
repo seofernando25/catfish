@@ -8,21 +8,49 @@ function sampleImpl(x: number, y: number) {
     const fluviality = sampleFluviality(x, y);
     const continentalness = sampleContinentalness(x, y);
 
-    const t = fluviality * continentalness;
+    // const t = fluviality * continentalness;
 
-    if (t > 0) {
-        const temp = sampleTemperature(x, y);
-        if (temp > 0.2) {
-            // return "dirt";
-            return 1;
-        } else {
-            return 2;
-            // return "sand";
+    const LAKE_IDX = 0;
+    const DIRT_IDX = 1;
+    const DESERT_IDX = 2;
+    const GRASS_IDX = 3;
+    const ICE_IDX = 4;
+    if (continentalness > 0.5) {
+        if (fluviality < 0.2) {
+            return LAKE_IDX;
         }
-    } else {
-        return 0;
-        // return "lake";
+
+        const temp = sampleTemperature(x, y) * 10;
+        if (continentalness < 0.51) {
+            if (temp < 4) {
+                return DIRT_IDX;
+            }
+
+            return DESERT_IDX;
+        }
+
+        // return temp * 255;
+
+        // Temp [0, 3] ice       (4)
+        // Temp [3, 7] grass     (3)
+        // Temp [8, 9] dirt      (1)
+        // Temp [9, 10] desert   (2)
+        const ranges = [
+            // [0, 3, GRASS_IDX],
+            [0, 4, DIRT_IDX],
+            [4, 7, GRASS_IDX],
+            [7, 10, DESERT_IDX],
+        ];
+
+        for (const [min, max, idx] of ranges) {
+            if (temp >= min && temp < max) {
+                return idx;
+            }
+        }
+
+        return GRASS_IDX;
     }
+    return LAKE_IDX;
 }
 
 const sampleMemo = new Map<number, number>();

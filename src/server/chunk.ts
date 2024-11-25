@@ -1,7 +1,7 @@
 import { ChunkWorkerManager } from "./chunk/ChunkWorkerManager";
 import { sample } from "./world";
 
-export const CHUNK_SIZE = 64;
+export const CHUNK_SIZE = 32;
 
 export class Chunk {
     data: Uint8Array;
