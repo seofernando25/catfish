@@ -1,12 +1,25 @@
 import Phaser from "phaser";
 
-import waterImage from "../assets/water/water.png";
 import dirtImage from "../assets/dirt/dirt.png";
+import playerImage from "../assets/player/car.png";
 import sandImage from "../assets/sand/sand.png";
+import tree1 from "../assets/trees/tree1.png";
+import tree2 from "../assets/trees/tree2.png";
+import tree3 from "../assets/trees/tree3.png";
+import waterImage from "../assets/water/water.png";
 
-import { BehaviorSubject, combineLatest } from "rxjs";
-import { throttleTime } from "rxjs/operators";
+import { combineLatest } from "rxjs";
+import type {
+    ClientEvent,
+    PlayerInfo,
+    ServerEvent,
+    ServerEventHandlerMap,
+} from "../server/state";
+import { NetworkPlayerAnnounceBehavior } from "./behaviors/NetworkPlayerAnnounceBehavior";
+import { WASDMoveBehavior } from "./behaviors/WASDMoveBehavior";
+import { GamePlayer } from "./player";
 import { TileMapManager } from "./tilemap";
+import { NetworkedMoveBehavior } from "./behaviors/NetworkedMoveBehavior";
 
 export default class Example extends Phaser.Scene {
     left: Phaser.Input.Keyboard.Key | undefined;
@@ -14,36 +27,43 @@ export default class Example extends Phaser.Scene {
     up: Phaser.Input.Keyboard.Key | undefined;
     down: Phaser.Input.Keyboard.Key | undefined;
     chunkSize = 32;
-    player = {
-        xSubject: new BehaviorSubject(0),
-        ySubject: new BehaviorSubject(0),
-        gameThis: this,
-        // Subscribe to throttled position changes
-        init() {
-            combineLatest([this.xSubject, this.ySubject])
-                .pipe(throttleTime(100)) // Throttle updates for combined `x` and `y`
-                .subscribe(([x, y]) => {
-                    this.gameThis.updatePosition();
-                });
-        },
+    // player = {
+    //     xSubject: new BehaviorSubject(0),
+    //     ySubject: new BehaviorSubject(0),
+    //     gameThis: this,
+    //     // Subscribe to throttled position changes
+    //     init() {
+    //         combineLatest([this.xSubject, this.ySubject])
+    //             .pipe(throttleTime(100)) // Throttle updates for combined `x` and `y`
+    //             .subscribe(([x, y]) => {
+    //                 this.gameThis.updatePosition();
+    //             });
+    //     },
 
-        set x(x) {
-            this.xSubject.next(x);
-        },
+    //     set x(x) {
+    //         this.xSubject.next(x);
+    //     },
 
-        get x() {
-            return this.xSubject.getValue();
-        },
+    //     get x() {
+    //         return this.xSubject.getValue();
+    //     },
 
-        set y(y) {
-            this.ySubject.next(y);
-        },
+    //     set y(y) {
+    //         this.ySubject.next(y);
+    //     },
 
-        get y() {
-            return this.ySubject.getValue();
-        },
-    };
+    //     get y() {
+    //         return this.ySubject.getValue();
+    //     },
+    // };
+    player: GamePlayer | undefined = undefined;
     preload() {
+        this.load.image("playerImage", playerImage);
+
+        this.load.image("tree1", tree1);
+        this.load.image("tree2", tree2);
+        this.load.image("tree3", tree3);
+
         // this.load.image("waterTileset", waterImage);
         this.load.spritesheet("waterTileset", waterImage, {
             frameWidth: 16,
@@ -57,17 +77,6 @@ export default class Example extends Phaser.Scene {
             frameWidth: 16,
             frameHeight: 16,
         });
-
-        this.left = this.input.keyboard?.addKey(
-            Phaser.Input.Keyboard.KeyCodes.A
-        );
-        this.right = this.input.keyboard?.addKey(
-            Phaser.Input.Keyboard.KeyCodes.D
-        );
-        this.up = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.W);
-        this.down = this.input.keyboard?.addKey(
-            Phaser.Input.Keyboard.KeyCodes.S
-        );
     }
 
     worldCoordsToChunkCoords(x: number, y: number) {
@@ -76,62 +85,14 @@ export default class Example extends Phaser.Scene {
 
     update(time: number, delta: number) {
         this.createIntersecting();
+
+        for (const player of this.players.values()) {
+            player.update(delta / 1000);
+        }
+
         const camera = this.cameras.main;
-        const playerSpeed = 100;
-        const deltaSeconds = delta / 1000;
-
-        let moveX = 0;
-        let moveY = 0;
-
-        if (this.left?.isDown) {
-            moveX -= 1;
-        } else if (this.right?.isDown) {
-            moveX += 1;
-        }
-
-        if (this.up?.isDown) {
-            moveY -= 1;
-        } else if (this.down?.isDown) {
-            moveY += 1;
-        }
-
-        const length = Math.sqrt(moveX * moveX + moveY * moveY);
-        if (length > 0) {
-            moveX /= length;
-            moveY /= length;
-
-            const predictedX =
-                this.player.x + moveX * playerSpeed * deltaSeconds;
-            const tile = this.tileMan?.getTile(predictedX, this.player.y);
-            // If tile == 0, then it's water, so don't move
-            if (tile === 0) {
-                moveX = 0;
-            }
-
-            const predictedY =
-                this.player.y + moveY * playerSpeed * deltaSeconds;
-            const tile2 = this.tileMan?.getTile(this.player.x, predictedY);
-            if (tile2 === 0) {
-                moveY = 0;
-            }
-
-            this.player.x += moveX * playerSpeed * deltaSeconds;
-            this.player.y += moveY * playerSpeed * deltaSeconds;
-        }
-
-        // If player is on water, move up
-        const tile = this.tileMan?.getTile(this.player.x, this.player.y);
-        if (tile === 0) {
-            this.player.y -= 1 * playerSpeed * deltaSeconds;
-        }
-
-        camera.centerOn(this.player.x, this.player.y);
+        camera.centerOn(this.player?.player.x ?? 0, this.player?.player.y ?? 0);
     }
-
-    private activeTiles = new Map<string, Phaser.Tilemaps.Tilemap>();
-
-    dirtPipeline: Phaser.Renderer.WebGL.WebGLPipeline | undefined;
-    waterPipeline: Phaser.Renderer.WebGL.WebGLPipeline | undefined;
 
     createIntersecting() {
         if (this.wsClient?.readyState !== WebSocket.OPEN) {
@@ -141,8 +102,8 @@ export default class Example extends Phaser.Scene {
 
         // Get player chunk
         const [playerChunkX, playerChunkY] = this.worldCoordsToChunkCoords(
-            this.player.x,
-            this.player.y
+            this.player?.player.x ?? 0,
+            this.player?.player.y ?? 0
         );
 
         // Radius 5
@@ -157,16 +118,18 @@ export default class Example extends Phaser.Scene {
                 if (this.requestedChunks.has(`${x}_${y}`)) {
                     continue;
                 }
-                console.log("Requesting chunk: ", x, y);
+
+                const chunkRequestEvent: ClientEvent = {
+                    type: "CLIENT_CHUNK_LOAD_REQUEST",
+                    data: {
+                        x,
+                        y,
+                    },
+                };
+
                 this.requestedChunks.add(`${x}_${y}`);
                 // Request chunk
-                this.wsClient?.send(
-                    JSON.stringify({
-                        type: "chunk",
-                        x: x,
-                        y: y,
-                    })
-                );
+                this.wsClient?.send(JSON.stringify(chunkRequestEvent));
             }
         }
     }
@@ -174,21 +137,10 @@ export default class Example extends Phaser.Scene {
 
     wsClient: WebSocket | undefined;
 
-    updatePosition() {
-        if (this.wsClient?.readyState !== WebSocket.OPEN) {
-            return;
-        }
-        console.log("Updating position");
-
-        const payload = {
-            type: "player",
-            x: this.player.x,
-            y: this.player.y,
-        };
-        this.wsClient?.send(JSON.stringify(payload));
-    }
-
     tileMan: TileMapManager | undefined;
+
+    players: Map<string, GamePlayer> = new Map();
+
     create() {
         this.tileMan = new TileMapManager(this);
         console.log("Creating scene");
@@ -196,47 +148,195 @@ export default class Example extends Phaser.Scene {
         this.wsClient = new WebSocket(
             document.location.origin.replace("http", "ws") + "/ws"
         );
-        this.wsClient.onmessage = (event) => {
-            const message = JSON.parse(event.data.toString());
-            if (message.type === "player") {
-                const { id, x, y } = message;
-                players.set(id, { x, y });
-                drawPlayers();
-            } else if (message.type === "chunk") {
-                const { x, y, data } = message;
-                // Convert data to 2d array
-                const dataArr = (data as string)
+
+        const createNetworkedPlayer = (playerInfo: PlayerInfo) => {
+            if (this.players.has(playerInfo.playerId)) {
+                console.log(
+                    "Tried to create networked player that already exists",
+                    playerInfo.playerId
+                );
+                return this.players.get(playerInfo.playerId)!;
+            }
+
+            const player = new GamePlayer(scene, playerInfo);
+            player.behaviors = [
+                new NetworkedMoveBehavior(player, this.wsClient!),
+                // new NetworkPlayerAnnounceBehavior(player, this.wsClient!),
+            ];
+            this.players.set(playerInfo.playerId, player);
+            return player;
+        };
+
+        const scene = this;
+        const handlers: ServerEventHandlerMap = {
+            CHUNK_LOAD: (event) => {
+                const { x, y, csv } = event.data;
+
+                const chunkData = csv
                     .split("\n")
                     .map((row) => row.split(","))
                     .map((row) => row.map((v) => parseInt(v)));
 
-                console.log("Adding chunk: ", x, y);
-                this.tileMan?.addChunk(x, y, dataArr);
+                this.tileMan?.addChunk(x, y, chunkData);
+            },
+            PLAYER_JOIN: (event) => {
+                console.log("Player joined" + event.data.playerId);
+
+                createNetworkedPlayer({
+                    playerId: event.data.playerId,
+                    username: "unknown",
+                    x: 0,
+                    y: 0,
+                });
+            },
+            PLAYER_INFO_ANNOUNCE(event) {
+                const { playerId, username, x, y } = event.data;
+                console.log("Player info announce: ", playerId, username, x, y);
+
+                // if player already exists, update it
+                if (scene.players.has(playerId)) {
+                    console.log("Player already exists, updating");
+                    const p = scene.players.get(playerId);
+                    if (p) {
+                        p.player.x = x;
+                        p.player.y = y;
+                        p.player.username = username;
+                    }
+                    return;
+                }
+                console.log("Creating new player");
+                createNetworkedPlayer(event.data);
+                // Create new player
+            },
+            PLAYER_MOVE(event) {
+                const { playerId, x, y } = event.data;
+                console.log("Player moved: ", playerId, x, y);
+            },
+
+            PLAYER_USERNAME_CHANGE: (event) => {
+                const { playerId, username } = event.data;
+                console.log("Player username change: ", playerId, username);
+            },
+            PLAYER_LEAVE: (event) => {
+                console.log("Player left" + event.data.playerId);
+                const p = this.players.get(event.data.playerId);
+                if (p) {
+                    p.dispose();
+                }
+                this.players.delete(event.data.playerId);
+            },
+            PLAYER_SELF_ID_ASSIGN: (event) => {
+                console.log("Player self id assign: ", event.data.playerId);
+                this.player = new GamePlayer(scene, {
+                    playerId: "unknown",
+                    username: "unknown",
+                    x: 5000,
+                    y: 950,
+                });
+                this.player.behaviors = [
+                    new WASDMoveBehavior(this.player, this.tileMan!),
+                    new NetworkPlayerAnnounceBehavior(
+                        this.player,
+                        this.wsClient!
+                    ),
+                ];
+                this.players.set(event.data.playerId, this.player!);
+            },
+        };
+
+        this.wsClient.onmessage = (event) => {
+            const message = JSON.parse(event.data.toString()) as ServerEvent;
+
+            const handler = handlers[message.type];
+            if (handler) {
+                handler(message as any);
             } else {
-                console.log("Unrecognized message: ", message);
+                alert("Unrecognized message: " + JSON.stringify(message));
             }
+
+            // if (message.type === "player") {
+            //     console.log("Player location: ", message);
+            //     const { id, x, y, username } = message;
+            //     players.set(id, { x, y, username });
+            //     drawPlayers();
+            // } else if (message.type === "player_leave") {
+            //     console.log("Player left: ", message);
+            //     // remove his sprite
+            //     const { id } = message;
+            //     players.delete(id);
+            //     playerImages.get(id)?.destroy();
+            //     playerImages.delete(id);
+            //     playerTexts.get(id)?.destroy();
+            //     playerTexts.delete(id);
+
+            //     console.log("Players: ", players);
+            //     drawPlayers();
+            // } else if (message.type === "chunk") {
+            //     const { x, y, data } = message;
+            //     // Convert data to 2d array
+            //     const dataArr = (data as string)
+            //         .split("\n")
+            //         .map((row) => row.split(","))
+            //         .map((row) => row.map((v) => parseInt(v)));
+
+            //     console.log("Adding chunk: ", x, y);
+            //     this.tileMan?.addChunk(x, y, dataArr);
+            // } else {
+            //     console.log("Unrecognized message: ", message);
+            // }
         };
 
         this.wsClient.onopen = (event) => {
             console.log("Connection opened");
-            this.updatePosition();
+
+            const e: ClientEvent = {
+                type: "CLIENT_PLAYER_LIST_REQUEST",
+                data: {},
+            };
+
+            this.wsClient?.send(JSON.stringify(e));
+
             this.createIntersecting();
         };
 
-        const players = new Map<string, { x: number; y: number }>();
+        const players = new Map<
+            string,
+            { x: number; y: number; username: string }
+        >();
         const playerGraphic = this.add.graphics();
         playerGraphic.setDepth(1000);
+        const playerImages = new Map<string, Phaser.GameObjects.Image>();
+        const playerTexts = new Map<string, Phaser.GameObjects.Text>();
         const drawPlayers = () => {
-            playerGraphic?.clear();
             for (const [id, player] of players.entries()) {
-                playerGraphic?.fillStyle(0xff0000, 1);
-                playerGraphic?.fillCircle(player.x, player.y, 0.5);
+                const playerImage = playerImages.get(id);
+                if (!playerImage) {
+                    const newPlayerImage = this.add.image(0, 0, "playerImage");
+                    newPlayerImage.setDisplaySize(1, 1);
+                    newPlayerImage?.setDepth(1000);
+                    playerImages.set(id, newPlayerImage);
+                }
+                const playerText = playerTexts.get(id);
+                if (!playerText) {
+                    const newPlayerText = this.add.text(0, 0, player.username);
+                    newPlayerText.setDepth(1000);
+                    playerTexts.set(id, newPlayerText);
+                    // Change scale
+                    newPlayerText.setScale(0.1);
+                }
+
+                playerImage?.setPosition(player.x, player.y);
+                playerText?.setPosition(player.x, player.y - 2);
             }
         };
 
-        this.player.x = 5000;
-        this.player.y = 950;
-        this.player.init();
+        // this.player.x = 5000;
+        // this.player.y = 950;
+        // this.player.init();
+
+        // Add a tree 10 tiles down the player
+        const tree = this.add.image(5000, 960, "tree1").setDisplaySize(3, 3);
+        tree.setDepth(1000);
 
         const startT = Date.now();
         this.input.on(
@@ -252,7 +352,7 @@ export default class Example extends Phaser.Scene {
 
                 // Calculate the zoom change proportionally
                 const zoomChange = camera.zoom * zoomFactor;
-                const minZoom = 40;
+                const minZoom = 5;
                 const maxZoom = 50;
                 if (deltaZ > 0) {
                     camera.zoom = Phaser.Math.Clamp(
@@ -270,28 +370,7 @@ export default class Example extends Phaser.Scene {
             }
         );
 
-        this.cameras.main.zoom = 50;
-
-        // Draw player
-        const frag = `
-        precision mediump float;
-
-        void main ()
-        {
-            gl_FragColor = vec4(1.0);
-        }
-        `;
-        const base = new Phaser.Display.BaseShader("simpleTexture", frag);
-
-        const shader = this.add.shader(base, 0, 0, 0.5, 0.5);
-        shader.setDepth(1000);
-        this.player.xSubject.subscribe((x) => {
-            shader.x = x;
-        });
-
-        this.player.ySubject.subscribe((y) => {
-            shader.y = y;
-        });
+        this.cameras.main.zoom = 20;
 
         console.log("Time to generate: ", Date.now() - startT);
     }

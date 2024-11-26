@@ -31,7 +31,8 @@
             scale: {
                 mode: Phaser.Scale.FIT,
             },
-            pixelArt: true,
+            antialias: false,
+            // pixelArt: true,
         });
         game.registry.destroy(); // destroy registry
     });
