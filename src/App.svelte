@@ -1,7 +1,7 @@
 <script lang="ts">
     import Phaser from "phaser";
     import { onMount } from "svelte";
-    import Example from "./lib/Example";
+    import Game from "./client/Game";
 
     let gameEl: HTMLDivElement;
     let clientWidth = $state(0);
@@ -22,7 +22,7 @@
 
     onMount(() => {
         game = new Phaser.Game({
-            scene: Example,
+            scene: Game,
             type: Phaser.AUTO,
             parent: gameEl,
             width: clientWidth / downScale,

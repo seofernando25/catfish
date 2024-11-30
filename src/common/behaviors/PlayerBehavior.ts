@@ -1,4 +1,4 @@
-import type { GamePlayer } from "../player";
+import type { GamePlayer } from "../../client/player";
 
 export abstract class PlayerBehavior {
     constructor(public gamePlayer: GamePlayer) {}
@@ -6,4 +6,6 @@ export abstract class PlayerBehavior {
     update(deltaTime: number): void {}
 
     dispose(): void {}
+
+    fixedUpdate(): void {}
 }

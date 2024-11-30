@@ -1,9 +1,5 @@
-import { sample } from "../world";
-import type {
-    ChunkTaskData,
-    WorkerTaskData,
-    WorkerTaskResult,
-} from "./ChunkWorkerManager";
+import { sample } from "../sampler";
+import type { WorkerTaskData, WorkerTaskResult } from "./ChunkWorkerManager";
 
 self.onmessage = (e: MessageEvent<WorkerTaskData>) => {
     const { taskId, chunkX, chunkY, chunkSize } = e.data;

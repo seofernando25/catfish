@@ -1,5 +1,4 @@
 import { ChunkWorkerManager } from "./chunk/ChunkWorkerManager";
-import { sample } from "./world";
 
 export const CHUNK_SIZE = 32;
 
@@ -44,37 +43,41 @@ export class Chunk {
         // return this.csvMemo;
         return rows.join("\n");
     }
+
+    to2DArray(): number[][] {
+        const rows = new Array(CHUNK_SIZE);
+        for (let i = 0; i < CHUNK_SIZE; i++) {
+            const row = new Array(CHUNK_SIZE);
+            for (let j = 0, k = i; j < CHUNK_SIZE; j++, k += CHUNK_SIZE) {
+                row[j] = this.data[k];
+            }
+            rows[i] = row;
+        }
+        return rows;
+    }
 }
 
 export class ChunkManager {
     chunks = new Map<string, Chunk>();
+    computedChunks = new Set<string>();
+    chunkWorkerMan = new ChunkWorkerManager();
 
-    setTile(x: number, y: number, v: number) {
+    async setTile(x: number, y: number, v: number) {
         const chunkX = Math.floor(x / CHUNK_SIZE);
         const chunkY = Math.floor(y / CHUNK_SIZE);
-        const chunkKey = `${chunkX},${chunkY}`;
-        const chunk =
-            this.chunks.get(chunkKey) || new Chunk({ x: chunkX, y: chunkY });
+        const chunk = await this.getChunk(chunkX, chunkY);
         chunk.set(x % CHUNK_SIZE, y % CHUNK_SIZE, v);
-        this.chunks.set(chunkKey, chunk);
     }
 
-    getTile(x: number, y: number): number {
+    async getTile(x: number, y: number) {
         const chunkX = Math.floor(x / CHUNK_SIZE);
         const chunkY = Math.floor(y / CHUNK_SIZE);
-        const chunkKey = `${chunkX},${chunkY}`;
-        const chunk = this.chunks.get(chunkKey);
+        const chunk = await this.getChunk(chunkX, chunkY);
         if (chunk) {
             return chunk.get(x % CHUNK_SIZE, y % CHUNK_SIZE);
         }
-        return 0;
+        return undefined;
     }
-}
-
-export class WorldMan {
-    chunkMan = new ChunkManager();
-    computedChunks = new Set<string>();
-    chunkWorkerMan = new ChunkWorkerManager();
 
     async genChunk(chunkX: number, chunkY: number) {
         const result = await this.chunkWorkerMan.runTask({
@@ -82,13 +85,10 @@ export class WorldMan {
             chunkX,
             chunkY,
         });
-
-        // console.log("Got result", result);
-
         const chunk = new Chunk({ x: chunkX, y: chunkY, data: result });
 
         const key = `${chunkX},${chunkY}`;
-        this.chunkMan.chunks.set(key, chunk);
+        this.chunks.set(key, chunk);
         this.computedChunks.add(key);
     }
 
@@ -98,6 +98,6 @@ export class WorldMan {
         if (!this.computedChunks.has(chunkKey)) {
             await this.genChunk(chunkX, chunkY);
         }
-        return this.chunkMan.chunks.get(chunkKey)!;
+        return this.chunks.get(chunkKey)!;
     }
 }

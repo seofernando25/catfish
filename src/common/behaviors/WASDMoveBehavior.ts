@@ -1,5 +1,6 @@
-import type { GamePlayer } from "../player";
-import type { TileMapManager } from "../tilemap";
+import type { ClientSocket } from "../../client/Game";
+import type { GamePlayer } from "../../client/player";
+import type { TileMapManager } from "../../client/tilemap";
 import { PlayerBehavior } from "./PlayerBehavior";
 
 /**
@@ -11,7 +12,11 @@ export class WASDMoveBehavior extends PlayerBehavior {
     up: Phaser.Input.Keyboard.Key | undefined;
     down: Phaser.Input.Keyboard.Key | undefined;
 
-    constructor(private gp: GamePlayer, private tileMan: TileMapManager) {
+    constructor(
+        private gp: GamePlayer,
+        private tileMan: TileMapManager,
+        private socket: ClientSocket
+    ) {
         super(gp);
 
         this.left = this.gp.scene.input.keyboard?.addKey(
@@ -40,6 +45,15 @@ export class WASDMoveBehavior extends PlayerBehavior {
         //  region Get move directions
         let moveX = 0;
         let moveY = 0;
+
+        let anyPressed =
+            this.left?.isDown ||
+            this.right?.isDown ||
+            this.up?.isDown ||
+            this.down?.isDown;
+        if (!anyPressed) {
+            return;
+        }
 
         if (this.left?.isDown) {
             moveX -= 1;
@@ -86,5 +100,10 @@ export class WASDMoveBehavior extends PlayerBehavior {
             this.gp.player.y -= 50 * playerSpeed * deltaTime;
         }
         // endregion
+        this.socket.volatile.emit("moveRequest", moveX, moveY);
+    }
+
+    fixedUpdate(): void {
+        this.socket.volatile.emit("moveRequest", 0, 0);
     }
 }

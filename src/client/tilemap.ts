@@ -2,7 +2,7 @@ import { CHUNK_SIZE } from "../server/chunk";
 
 export class TileMapManager {
     tileMapInfo = new Map<string, number[][]>();
-    tileMaps = new Map<string, Phaser.GameObjects.Graphics>();
+    tileMaps = new Map<string, Phaser.GameObjects.Image>();
 
     constructor(public scene: Phaser.Scene) {}
 
@@ -31,7 +31,6 @@ export class TileMapManager {
         }
 
         const graphics = this.scene.add.graphics();
-        this.tileMaps.set(chunkKey, graphics);
 
         const iceColor = 0x9ad7db;
         const grassColor = 0x6c9849;
@@ -66,6 +65,7 @@ export class TileMapManager {
 
         this.tileMapInfo.set(chunkKey, chunkData);
         // Raster graphics to texture
+
         const tex = graphics.generateTexture(
             `chunk-${chunkKey}`,
             chunkData.length,
@@ -78,5 +78,16 @@ export class TileMapManager {
             `chunk-${chunkKey}`
         );
         image.setOrigin(0, 0);
+        this.tileMaps.set(chunkKey, image);
+    }
+
+    removeChunk(chunkX: number, chunkY: number) {
+        const chunkKey = `${chunkX},${chunkY}`;
+        const graphics = this.tileMaps.get(chunkKey);
+        if (graphics) {
+            graphics.destroy();
+            this.tileMaps.delete(chunkKey);
+            this.tileMapInfo.delete(chunkKey);
+        }
     }
 }

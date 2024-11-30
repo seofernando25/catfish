@@ -1,5 +1,5 @@
-import type { PlayerInfo } from "../server/state";
-import type { PlayerBehavior } from "./behaviors/PlayerBehavior";
+import type { PlayerBehavior } from "../common/behaviors/PlayerBehavior";
+import type { PlayerInfo } from "../common/player";
 
 export class GamePlayer {
     sprite: Phaser.GameObjects.Image | undefined;
@@ -19,6 +19,12 @@ export class GamePlayer {
 
         if (this.sprite) {
             this.sprite.setPosition(this.player.x, this.player.y);
+        }
+    }
+
+    fixedUpdate(): void {
+        for (const behavior of this.behaviors) {
+            behavior.fixedUpdate();
         }
     }
 
