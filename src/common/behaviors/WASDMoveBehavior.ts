@@ -1,6 +1,7 @@
 import type { ClientSocket } from "../../client/Game";
 import type { GamePlayer } from "../../client/player";
 import type { TileMapManager } from "../../client/tilemap";
+import { PLAYER_SPEED } from "../player";
 import { PlayerBehavior } from "./PlayerBehavior";
 
 /**
@@ -41,7 +42,6 @@ export class WASDMoveBehavior extends PlayerBehavior {
     }
 
     update(deltaTime: number): void {
-        const playerSpeed = 15;
         //  region Get move directions
         let moveX = 0;
         let moveY = 0;
@@ -74,31 +74,31 @@ export class WASDMoveBehavior extends PlayerBehavior {
         }
         // endregion
 
-        // region Move X
-        const predictedX = this.gp.player.x + moveX * playerSpeed * deltaTime;
-        const tile = this.tileMan?.getTile(predictedX, this.gp.player.y);
-        if (tile === 0) {
-            moveX = 0;
-        }
-        this.gp.player.x += moveX * playerSpeed * deltaTime;
-        // endregion
+        // // region Move X
+        // const predictedX = this.gp.player.x + moveX * playerSpeed * deltaTime;
+        // const tile = this.tileMan?.getTile(predictedX, this.gp.player.y);
+        // if (tile === 0) {
+        //     moveX = 0;
+        // }
+        this.gp.player.x += moveX * PLAYER_SPEED * deltaTime;
+        // // endregion
 
-        // region Move Y
+        // // region Move Y
 
-        const predictedY = this.gp.player.y + moveY * playerSpeed * deltaTime;
-        const tile2 = this.tileMan?.getTile(this.gp.player.x, predictedY);
-        if (tile2 === 0) {
-            moveY = 0;
-        }
+        // const predictedY = this.gp.player.y + moveY * playerSpeed * deltaTime;
+        // const tile2 = this.tileMan?.getTile(this.gp.player.x, predictedY);
+        // if (tile2 === 0) {
+        //     moveY = 0;
+        // }
 
-        this.gp.player.y += moveY * playerSpeed * deltaTime;
-        // endregion
+        this.gp.player.y += moveY * PLAYER_SPEED * deltaTime;
+        // // endregion
 
-        // region Water reconsiliation fallback
-        const tile3 = this.tileMan?.getTile(this.gp.player.x, this.gp.player.y);
-        if (tile3 === 0) {
-            this.gp.player.y -= 50 * playerSpeed * deltaTime;
-        }
+        // // region Water reconsiliation fallback
+        // const tile3 = this.tileMan?.getTile(this.gp.player.x, this.gp.player.y);
+        // if (tile3 === 0) {
+        //     this.gp.player.y -= 50 * playerSpeed * deltaTime;
+        // }
         // endregion
         this.socket.volatile.emit("moveRequest", moveX, moveY);
     }

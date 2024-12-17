@@ -17,13 +17,13 @@ export class GameTimer {
     start(): void {
         if (this.intervalId) return;
 
-        this.delta = 1000 / this.ticksPerSecond;
+        this.delta = 1 / this.ticksPerSecond;
         this.startTime = Date.now();
         this.intervalId = setInterval(() => {
             this.elapsed = Date.now() - (this.startTime || 0);
             this.tickCallback();
             this._tick++;
-        }, this.delta);
+        }, 1000 / this.ticksPerSecond);
     }
 
     pause(): void {

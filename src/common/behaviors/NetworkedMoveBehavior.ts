@@ -1,6 +1,6 @@
 import type { ClientSocket } from "../../client/Game";
 import type { GamePlayer } from "../../client/player";
-import type { PlayerInfo } from "../../server/events/server";
+import type { PlayerInfo } from "../player";
 import { PlayerBehavior } from "./PlayerBehavior";
 
 export class NetworkedMoveBehavior extends PlayerBehavior {
@@ -25,7 +25,11 @@ export class NetworkedMoveBehavior extends PlayerBehavior {
         }
     }).bind(this);
 
-    constructor(public gamePlayer: GamePlayer, public socket: ClientSocket) {
+    constructor(
+        public gamePlayer: GamePlayer,
+        public socket: ClientSocket,
+        public reconsiliationSpeed: number = 0.1
+    ) {
         super(gamePlayer);
 
         this.socket.on("player_disconnected", this.onPlayerDisconnected);
@@ -46,7 +50,7 @@ export class NetworkedMoveBehavior extends PlayerBehavior {
 
         // this.gamePlayer.player.x = this.lastSentX;
         // this.gamePlayer.player.y = this.lastSentY;
-        const speed = 0.1;
+        const speed = this.reconsiliationSpeed;
         this.gamePlayer.player.x +=
             (this.lastSentX - this.gamePlayer.player.x) * speed;
         this.gamePlayer.player.y +=

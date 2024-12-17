@@ -27,6 +27,8 @@
             parent: gameEl,
             width: clientWidth / downScale,
             height: clientHeight / downScale,
+            // bilinear mip map
+            mipmapFilter: "LINEAR_MIPMAP_NEAREST",
             // Fill
             scale: {
                 mode: Phaser.Scale.FIT,

@@ -1,52 +1,64 @@
-import type { PlayerInfo } from "../../server/events/server";
-import type { RpcClientRx } from "../../client/clientRPC";
+import type { ClientSocket } from "../../client/Game";
 import type { GamePlayer } from "../../client/player";
+import type { PlayerInfo } from "../player";
 import { PlayerBehavior } from "./PlayerBehavior";
 
-/**
- * Reconsiliates the player's position with the server's position
- */
 export class ReconsiliationBehavior extends PlayerBehavior {
-    serverState: PlayerInfo | undefined;
+    lastSentX: number | undefined = undefined;
+    lastSentY: number | undefined = undefined;
 
-    disposeFn = () => {};
-    constructor(public gamePlayer: GamePlayer, gameRx: RpcClientRx) {
+    onSocketDisconnect = (() => {
+        // console.log("Player disconnected");
+        this.gamePlayer.dispose();
+    }).bind(this);
+
+    onPlayerInfo = ((pi: PlayerInfo) => {
+        if (pi.playerId === this.gamePlayer.player.playerId) {
+            this.lastSentX = pi.x;
+            this.lastSentY = pi.y;
+        }
+    }).bind(this);
+
+    onPlayerDisconnected = ((playerId: string) => {
+        if (playerId === this.gamePlayer.player.playerId) {
+            this.gamePlayer.dispose();
+        }
+    }).bind(this);
+
+    constructor(public gamePlayer: GamePlayer, public socket: ClientSocket) {
         super(gamePlayer);
-        const id = this.gamePlayer.player.playerId;
 
-        const a = gameRx("SERVER_PLAYER_INFO_ANNOUNCE", async (data) => {
-            if (data.playerId === id) {
-                this.serverState = data;
-            }
-        });
-        const b = gameRx("SERVER_PLAYER_MOVE", async (data) => {
-            if (data.playerId === id) {
-                this.serverState = {
-                    ...data,
-                    username: this.serverState?.username ?? "unknown",
-                };
-            }
-        });
-        this.dispose = () => {
-            a();
-            b();
-        };
+        this.socket.on("player_disconnected", this.onPlayerDisconnected);
+        this.socket.on("disconnect", this.onSocketDisconnect);
+        this.socket.on("player_info_announce", this.onPlayerInfo);
     }
 
     dispose(): void {
-        this.disposeFn();
+        this.socket.off("player_disconnected", this.onPlayerDisconnected);
+        this.socket.off("disconnect", this.onSocketDisconnect);
+        this.socket.off("player_info_announce", this.onPlayerInfo);
     }
 
     update(deltaTime: number): void {
-        if (!this.serverState) {
+        if (this.lastSentX === undefined || this.lastSentY === undefined) {
             return;
         }
 
-        const dx = this.serverState.x - this.gamePlayer.player.x;
-        const dy = this.serverState.y - this.gamePlayer.player.y;
+        const deltaX = this.gamePlayer.player.x - this.lastSentX;
+        const deltaY = this.gamePlayer.player.y - this.lastSentY;
+
+        const magnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        if (magnitude > 10) {
+            this.gamePlayer.player.x = this.lastSentX;
+            this.gamePlayer.player.y = this.lastSentY;
+            console.log("Reconsiliating player position");
+        }
 
         const speed = 0.1;
-        this.gamePlayer.player.x += dx * speed;
-        this.gamePlayer.player.y += dy * speed;
+        this.gamePlayer.player.x +=
+            (this.lastSentX - this.gamePlayer.player.x) * speed;
+        this.gamePlayer.player.y +=
+            (this.lastSentY - this.gamePlayer.player.y) * speed;
     }
 }

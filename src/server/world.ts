@@ -1,4 +1,5 @@
 import type { ServerSocketInstance } from ".";
+import { PLAYER_SPEED } from "../common/player";
 import { CHUNK_SIZE, ChunkManager } from "./chunk";
 import type { ServerSocketClient } from "./events";
 
@@ -100,8 +101,8 @@ export class WorldMan {
         socket.data.playerInfo = {
             playerId: socket.id,
             username: "player",
-            x: 0,
-            y: 0,
+            x: 110,
+            y: -60,
         };
 
         socket.data.input_buffer = [];
@@ -196,21 +197,60 @@ export class WorldMan {
             });
 
             const player = socket.data.playerInfo!;
-            const playerSpeed = 0.1;
+            let tickRateSantityCheck = [];
+            let lastTick = 0;
             return {
                 onTick: async () => {
-                    if (input_buffer.length === 0) {
-                        return;
+                    tickRateSantityCheck.push(Date.now());
+                    // if (tickRateSantityCheck.length > 100) {
+                    //     // remove first element
+                    //     tickRateSantityCheck.shift();
+                    //     const diffs = [];
+                    //     for (
+                    //         let i = 0;
+                    //         i < tickRateSantityCheck.length - 1;
+                    //         i++
+                    //     ) {
+                    //         diffs.push(
+                    //             tickRateSantityCheck[i + 1] -
+                    //                 tickRateSantityCheck[i]
+                    //         );
+                    //     }
+                    //     const totalDiff = diffs.reduce((a, b) => a + b, 0);
+                    //     const avgDiff = totalDiff / diffs.length;
+                    //     const avgDiffSec = avgDiff / 1000;
+                    //     console.log("Avg diff", avgDiffSec);
+                    // }
+
+                    const bufSize = 2;
+                    // strip input_buffer to last 1
+                    input_buffer.splice(0, input_buffer.length - bufSize);
+
+                    const cmd = input_buffer.shift();
+
+                    // region Water reconsiliation fallback
+                    const tile3 = await this.chunkMan?.getTile(
+                        player.x,
+                        player.y
+                    );
+
+                    if (tile3 === 0 || tile3 === undefined) {
+                        console.log("on water");
+                        // let onWater = true;
+                        // onWater =
+                        //     (await this.chunkMan?.getTile(
+                        //         player.x,
+                        //         player.y
+                        //     )) !== 0;
+                        // player.y -= this.timer.delta * 0.2;
+                        // console.log("off water");
                     }
 
-                    const cmd = input_buffer.shift()!;
-
-                    if (cmd.cmd === "move") {
+                    if (cmd && cmd.cmd === "move") {
                         let moveX = cmd.x;
                         let moveY = cmd.y;
 
                         const length = Math.sqrt(moveX * moveX + moveY * moveY);
-
                         if (length > 10) {
                             console.log(
                                 "Player",
@@ -227,40 +267,34 @@ export class WorldMan {
 
                         // region Move X
                         const predictedX =
-                            player.x + moveX * playerSpeed * this.timer.delta;
+                            player.x + moveX * PLAYER_SPEED * this.timer.delta;
                         const tile = await this.chunkMan.getTile(
                             predictedX,
                             player.y
                         );
+
                         if (tile === 0) {
+                            console.log("hit wall x");
                             moveX = 0;
                         }
-                        player.x += moveX * playerSpeed * this.timer.delta;
+                        player.x += moveX * PLAYER_SPEED * this.timer.delta;
                         // endregion
 
                         // region Move Y
 
                         const predictedY =
-                            player.y + moveY * playerSpeed * this.timer.delta;
+                            player.y + moveY * PLAYER_SPEED * this.timer.delta;
                         const tile2 = await this.chunkMan?.getTile(
                             player.x,
                             predictedY
                         );
                         if (tile2 === 0) {
                             moveY = 0;
+                            console.log("hit wall y");
                         }
 
-                        player.y += moveY * playerSpeed * this.timer.delta;
+                        player.y += moveY * PLAYER_SPEED * this.timer.delta;
                         // endregion
-
-                        // region Water reconsiliation fallback
-                        const tile3 = await this.chunkMan?.getTile(
-                            player.x,
-                            player.y
-                        );
-                        if (tile3 === 0) {
-                            player.y -= 50 * this.timer.delta;
-                        }
                     }
 
                     // Emit the new position to all clients
@@ -275,99 +309,4 @@ export class WorldMan {
         socket.data.onTick.push(moveEv.onTick);
         // this.addPlayerEvent(uuid, chunkLoadEv);
     }
-
-    // CLIENT_PLAYER_MOVE: async (event) => {
-    //     const { x, y } = event;
-    //     const player = scene.players.get(id);
-    //     if (!player) {
-    //         return;
-    //     }
-
-    //     const playerSpeed = 5;
-
-    //     let moveX = x;
-    //     let moveY = y;
-
-    //     const length = Math.sqrt(moveX * moveX + moveY * moveY);
-    //     if (length > 0) {
-    //         moveX /= length;
-    //         moveY /= length;
-    //     }
-    //     // endregion
-
-    //     if (!this.inputQueue.has(player.playerId)) {
-    //         this.inputQueue.set(player.playerId, []);
-    //     }
-    //     this.inputQueue.get(player.playerId)?.push([x, y]);
-
-    // region Move X
-    // const predictedX = player.x + moveX * playerSpeed * deltaTime;
-    // const tile = this.tileMan?.getTile(predictedX, player.y);
-    // if (tile === 0) {
-    //     moveX = 0;
-    // }
-    // this.gp.player.x += moveX * playerSpeed * deltaTime;
-    // // endregion
-
-    // // region Move Y
-
-    // const predictedY =
-    //     this.gp.player.y + moveY * playerSpeed * deltaTime;
-    // const tile2 = this.tileMan?.getTile(
-    //     this.gp.player.x,
-    //     predictedY
-    // );
-    // if (tile2 === 0) {
-    //     moveY = 0;
-    // }
-
-    // this.gp.player.y += moveY * playerSpeed * deltaTime;
-    // // endregion
-
-    // // region Water reconsiliation fallback
-    // const tile3 = this.tileMan?.getTile(
-    //     this.gp.player.x,
-    //     this.gp.player.y
-    // );
-    // if (tile3 === 0) {
-    //     this.gp.player.y -= 50 * playerSpeed * deltaTime;
-    // }
-    // endregion
-
-    // Try move the player
-
-    //     if (player) {
-    //         player.x = x;
-    //         player.y = y;
-    //     }
-
-    //     for (const [ip, cb] of scene.playerCb.entries()) {
-    //         this.rpc(ip, "SERVER_PLAYER_MOVE", {
-    //             playerId: id,
-    //             x,
-    //             y,
-    //         });
-    //     }
-    // },
-
-    // CLIENT_PLAYER_MOVE(event) {
-    //     const { x, y } = event.data;
-    //     const player = scene.playerVars.get(id);
-    //     if (player) {
-    //         player.x = x;
-    //         player.y = y;
-    //     }
-    //     const moveEvent: ServerEvent = {
-    //         type: "SERVER_PLAYER_MOVE",
-    //         data: {
-    //             playerId: id,
-    //             x,
-    //             y,
-    //         },
-    //     };
-    //     for (const [ip, cb] of scene.playerCb.entries()) {
-    //         cb(moveEvent);
-    //     }
-    // },
-    // };
 }

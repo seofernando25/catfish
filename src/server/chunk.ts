@@ -1,11 +1,9 @@
 import { ChunkWorkerManager } from "./chunk/ChunkWorkerManager";
 
-export const CHUNK_SIZE = 32;
+export const CHUNK_SIZE = 16;
 
 export class Chunk {
     data: Uint8Array;
-    offsetX = 0;
-    offsetY = 0;
     // csvMemo: string | undefined = undefined;
 
     constructor(o: { x: number; y: number; data?: Uint8Array } | undefined) {
@@ -15,19 +13,23 @@ export class Chunk {
         } else {
             this.data = o?.data;
         }
-        if (o) {
-            this.offsetX = o.x;
-            this.offsetY = o.y;
-        }
     }
 
     get(x: number, y: number): number {
+        x = x % CHUNK_SIZE;
+        y = y % CHUNK_SIZE;
+        x = (x + CHUNK_SIZE) % CHUNK_SIZE;
+        y = (y + CHUNK_SIZE) % CHUNK_SIZE;
         return this.data[y * CHUNK_SIZE + x];
     }
 
     set(x: number, y: number, v: number) {
+        x = x % CHUNK_SIZE;
+        y = y % CHUNK_SIZE;
+        x = (x + CHUNK_SIZE) % CHUNK_SIZE;
+        y = (y + CHUNK_SIZE) % CHUNK_SIZE;
+
         this.data[y * CHUNK_SIZE + x] = v;
-        // this.c/svMemo = undefined;
     }
 
     toCSV() {
@@ -39,8 +41,6 @@ export class Chunk {
             }
             rows[i] = row.join(",");
         }
-        // this.csvMemo = rows.join("\n");
-        // return this.csvMemo;
         return rows.join("\n");
     }
 
@@ -63,23 +63,30 @@ export class ChunkManager {
     chunkWorkerMan = new ChunkWorkerManager();
 
     async setTile(x: number, y: number, v: number) {
-        const chunkX = Math.floor(x / CHUNK_SIZE);
-        const chunkY = Math.floor(y / CHUNK_SIZE);
+        x = Math.floor(x);
+        y = Math.floor(y);
+        const chunkX = x / CHUNK_SIZE;
+        const chunkY = y / CHUNK_SIZE;
         const chunk = await this.getChunk(chunkX, chunkY);
-        chunk.set(x % CHUNK_SIZE, y % CHUNK_SIZE, v);
+        chunk.set(x, y, v);
     }
 
     async getTile(x: number, y: number) {
-        const chunkX = Math.floor(x / CHUNK_SIZE);
-        const chunkY = Math.floor(y / CHUNK_SIZE);
+        x = Math.floor(x);
+        y = Math.floor(y);
+        const chunkX = x / CHUNK_SIZE;
+        const chunkY = y / CHUNK_SIZE;
         const chunk = await this.getChunk(chunkX, chunkY);
         if (chunk) {
-            return chunk.get(x % CHUNK_SIZE, y % CHUNK_SIZE);
+            return chunk.get(x, y);
         }
+        console.error("Chunk not found");
         return undefined;
     }
 
     async genChunk(chunkX: number, chunkY: number) {
+        chunkX = Math.floor(chunkX);
+        chunkY = Math.floor(chunkY);
         const result = await this.chunkWorkerMan.runTask({
             chunkSize: CHUNK_SIZE,
             chunkX,
@@ -93,6 +100,8 @@ export class ChunkManager {
     }
 
     async getChunk(chunkX: number, chunkY: number) {
+        chunkX = Math.floor(chunkX);
+        chunkY = Math.floor(chunkY);
         const key = `${chunkX},${chunkY}`;
         const chunkKey = key;
         if (!this.computedChunks.has(chunkKey)) {

@@ -4,6 +4,7 @@ import { Pane } from "tweakpane";
 import dirtImage from "../assets/dirt/dirt.png";
 import playerImage from "../assets/player/car.png";
 import sandImage from "../assets/sand/sand.png";
+import grassImage from "../assets/grass/grass.png";
 import tree1 from "../assets/trees/tree1.png";
 import tree2 from "../assets/trees/tree2.png";
 import tree3 from "../assets/trees/tree3.png";
@@ -21,6 +22,7 @@ import type {
 } from "../server/events";
 import type { PlayerInfo } from "../common/player";
 import { GameTimer } from "../server/GameTimer";
+import { ReconsiliationBehavior } from "../common/behaviors/ReconsiliationBehavior";
 
 const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(
     document.location.origin,
@@ -77,14 +79,23 @@ export default class Game extends Phaser.Scene {
         this.load.spritesheet("waterTileset", waterImage, {
             frameWidth: 16,
             frameHeight: 16,
+            startFrame: 4,
         });
         this.load.spritesheet("dirtTileset", dirtImage, {
             frameWidth: 16,
             frameHeight: 16,
+            startFrame: 4,
         });
         this.load.spritesheet("sandTileset", sandImage, {
             frameWidth: 16,
             frameHeight: 16,
+            startFrame: 4,
+        });
+
+        this.load.spritesheet("grassTileset", grassImage, {
+            frameWidth: 16,
+            frameHeight: 16,
+            startFrame: 4,
         });
     }
 
@@ -144,10 +155,11 @@ export default class Game extends Phaser.Scene {
             console.log("Creating networked player", playerInfo.playerId);
             const player = new GamePlayer(scene, playerInfo);
             player.behaviors = [
-                new NetworkedMoveBehavior(player, socket),
                 ...(socket.id === playerInfo.playerId
                     ? [new WASDMoveBehavior(player, this.tileMan!, socket)]
                     : []),
+                // new NetworkedMoveBehavior(player, socket, 0.1),
+                new ReconsiliationBehavior(player, socket),
                 // new NetworkPlayerAnnounceBehavior(player, this.wsClient!),
             ];
             this.players.set(playerInfo.playerId, player);
@@ -200,7 +212,7 @@ export default class Game extends Phaser.Scene {
 
                 // Calculate the zoom change proportionally
                 const zoomChange = camera.zoom * zoomFactor;
-                const minZoom = 5;
+                const minZoom = 1;
                 const maxZoom = 50;
                 if (deltaZ > 0) {
                     camera.zoom = Phaser.Math.Clamp(
