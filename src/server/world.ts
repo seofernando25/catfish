@@ -1,26 +1,75 @@
+import { effect } from "@preact/signals";
 import type { ServerSocketInstance } from ".";
 import { PLAYER_SPEED } from "../common/player";
+import { Ticker } from "../common/ticker/Ticker";
 import { CHUNK_SIZE, ChunkManager } from "./chunk";
 import type { ServerSocketClient } from "./events";
 
-import { GameTimer } from "./GameTimer";
+function requestAnimationFrame(callback: CallableFunction) {
+    const start = Date.now();
+    let lastTime = start;
+
+    function frame() {
+        const now = Date.now();
+        const elapsed = now - lastTime;
+
+        // Call the callback with the time elapsed since the start
+        callback(now - start);
+
+        // Adjust the next frame to compensate for delays
+        lastTime = now;
+        const delay = Math.max(0, 16 - elapsed); // Target ~60 FPS (16ms/frame)
+        setTimeout(frame, delay);
+    }
+
+    setTimeout(frame, 0);
+}
+
+// @ts-ignore
+globalThis.requestAnimationFrame = requestAnimationFrame;
 
 export class WorldMan {
     chunkMan = new ChunkManager();
-    timer = new GameTimer(20, this.onTick.bind(this));
+    ticker = new Ticker();
 
     worldInstanceId = crypto.randomUUID();
 
     handleConBind = this.handleConnection.bind(this);
 
     constructor(public io: ServerSocketInstance) {
-        this.timer.start();
+        let count = 0;
+
+        effect(() => {
+            console.log(this.ticker.currentTick.value);
+            console.log("Delta", 1 / this.ticker.deltaTime.value);
+        });
+
+        this.ticker.tickrate.value = 60;
+
+        // this.ticker.addListener(async (ticker) => {
+        //     console.log("Delta", 1 / ticker.deltaTime());
+        //     count++;
+        //     // Every 5 ticks
+        //     if (count % 5 === 0) {
+        //         this.io.emit("tick_sync", count);
+        //     }
+        //     const socks = await this.io.fetchSockets();
+        //     for (const sock of socks) {
+        //         const data = sock.data;
+        //         if (!data || !sock.data?.onTick) {
+        //             continue;
+        //         }
+        //         for (const cb of sock.data?.onTick) {
+        //             cb();
+        //         }
+        //     }
+        // });
+        // this.ticker.start();
 
         io.on("connection", this.handleConBind);
     }
 
     dispose() {
-        this.timer.stop();
         this.io.off("connection", this.handleConBind);
         for (const sock of this.io.sockets.sockets.values()) {
             sock.data.dispose?.forEach((cb) => cb());
@@ -30,29 +79,11 @@ export class WorldMan {
         }
     }
 
-    async onTick() {
-        const tick = this.timer.tick;
-
-        // Every 5 ticks
-        if (tick % 5 === 0) {
-            this.io.emit("tick_sync", tick);
-        }
-        const socks = await this.io.fetchSockets();
-        for (const sock of socks) {
-            const data = sock.data;
-            if (!data || !sock.data?.onTick) {
-                continue;
-            }
-            for (const cb of sock.data?.onTick) {
-                cb();
-            }
-        }
-    }
-
     async handleConnection(socket: ServerSocketClient) {
         let clientOk = false;
         console.log("New connection from", socket.id);
 
+        // Wait for clientOk event
         await new Promise<void>((resolve) => {
             let cleanUp = () => {
                 socket.off("clientOk", cOkHandler);
@@ -83,6 +114,7 @@ export class WorldMan {
             socket.on("clientOk", cOkHandler);
             socket.on("disconnect", disconnectHandler);
         });
+
         if (socket.disconnected) {
             console.log("Failed to connect to client", socket.id);
             return;
@@ -101,8 +133,8 @@ export class WorldMan {
         socket.data.playerInfo = {
             playerId: socket.id,
             username: "player",
-            x: 110,
-            y: -60,
+            x: 0,
+            y: 0,
         };
 
         socket.data.input_buffer = [];
@@ -197,31 +229,9 @@ export class WorldMan {
             });
 
             const player = socket.data.playerInfo!;
-            let tickRateSantityCheck = [];
             let lastTick = 0;
             return {
                 onTick: async () => {
-                    tickRateSantityCheck.push(Date.now());
-                    // if (tickRateSantityCheck.length > 100) {
-                    //     // remove first element
-                    //     tickRateSantityCheck.shift();
-                    //     const diffs = [];
-                    //     for (
-                    //         let i = 0;
-                    //         i < tickRateSantityCheck.length - 1;
-                    //         i++
-                    //     ) {
-                    //         diffs.push(
-                    //             tickRateSantityCheck[i + 1] -
-                    //                 tickRateSantityCheck[i]
-                    //         );
-                    //     }
-                    //     const totalDiff = diffs.reduce((a, b) => a + b, 0);
-                    //     const avgDiff = totalDiff / diffs.length;
-                    //     const avgDiffSec = avgDiff / 1000;
-                    //     console.log("Avg diff", avgDiffSec);
-                    // }
-
                     const bufSize = 2;
                     // strip input_buffer to last 1
                     input_buffer.splice(0, input_buffer.length - bufSize);
@@ -299,6 +309,8 @@ export class WorldMan {
 
                     // Emit the new position to all clients
                     this.io.emit("player_info_announce", player);
+
+                    console.log(player);
                 },
             };
         };
@@ -307,6 +319,20 @@ export class WorldMan {
         socket.data.onTick.push(chunkLoadEv.onTick);
         const moveEv = moveEvent();
         socket.data.onTick.push(moveEv.onTick);
+
+        let playerPing = 0;
+        socket.on("ping", (num, cb) => {
+            const now = Date.now();
+            const delta = now - num;
+            if (delta < 0) {
+                console.log("Client", socket.id, "sent ping in the future"); // Could it happen in different timezones?
+            } else {
+                playerPing = delta;
+            }
+
+            cb(now);
+        });
+
         // this.addPlayerEvent(uuid, chunkLoadEv);
     }
 }

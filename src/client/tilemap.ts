@@ -1,3 +1,5 @@
+import { Sprite, type Container } from "pixi.js";
+import { spritesheetObj } from "../main";
 import { CHUNK_SIZE } from "../server/chunk";
 import {
     DESERT_IDX,
@@ -9,9 +11,9 @@ import {
 
 export class TileMapManager {
     tileMapInfo = new Map<string, number[][]>();
-    tileMaps = new Map<string, Phaser.GameObjects.Image>();
+    tileMaps = new Map<string, Sprite>();
 
-    constructor(public scene: Phaser.Scene) {}
+    constructor(public container: Container) {}
 
     getChunk(x: number, y: number) {
         const chunkKey = `${x},${y}`;
@@ -32,118 +34,49 @@ export class TileMapManager {
     }
 
     addChunk(chunkX: number, chunkY: number, chunkData: number[][]) {
+        console.log("Adding chunk", chunkX, chunkY);
         const chunkKey = `${chunkX},${chunkY}`;
         if (this.tileMaps.has(chunkKey)) {
             return;
         }
 
-        const graphics = this.scene.add.graphics();
         const OFFSET_X = chunkX * CHUNK_SIZE;
         const OFFSET_Y = chunkY * CHUNK_SIZE;
-        graphics.x = OFFSET_X;
-        graphics.y = OFFSET_Y;
-
-        const tileResolution = 16;
-        const renderText = this.scene.add.renderTexture(
-            OFFSET_X,
-            OFFSET_Y,
-            CHUNK_SIZE * tileResolution,
-            CHUNK_SIZE * tileResolution
-        );
-
-        const iceColor = 0x9ad7db;
-        // 0x74cc8c
         const dim = chunkData.length;
-        renderText.beginDraw();
-        let waterSprite = this.scene.add.image(10, 5555, "waterTileset");
-        waterSprite.setVisible(false);
-        renderText.batchDraw(waterSprite, tileResolution, tileResolution);
-        renderText.batchDraw(
-            waterSprite,
-            tileResolution * 2,
-            tileResolution * 2
-        );
-        renderText.batchDraw(
-            waterSprite,
-            tileResolution * 3,
-            tileResolution * 3
-        );
 
         for (let x = 0; x < dim; x++) {
             for (let y = 0; y < dim; y++) {
                 const tile = chunkData[x][y];
-                const grayness = tile / 255;
-
+                // const grayness = tile / 255;
+                let sprite: Sprite | null = null;
                 if (tile === LAKE_IDX) {
-                    renderText.batchDraw(
-                        waterSprite,
-                        tileResolution * x,
-                        tileResolution * y
-                    );
-                    // renderText.batchDraw(waterSprite, 0, 0);
-                    // renderText.batchDraw(waterSprite, 17, 0);
-                    // lakeImg.destroy();
-                    // graphics.fillStyle(lakeColor);
+                    sprite = new Sprite(spritesheetObj.textures.water1);
                 } else if (tile === DIRT_IDX) {
-                    // dirtTileset
-                    let dirtImg = this.scene.add.image(
-                        graphics.x + x,
-                        graphics.y + y,
-                        "dirtTileset"
-                    );
-                    dirtImg.setDisplaySize(1, 1);
-                    dirtImg.setOrigin(0, 0);
-                    dirtImg.setDepth(1);
+                    sprite = new Sprite(spritesheetObj.textures.dirt1);
                 } else if (tile === DESERT_IDX) {
-                    let sandImg = this.scene.add.image(
-                        graphics.x + x,
-                        graphics.y + y,
-                        "sandTileset"
-                    );
-                    sandImg.setDisplaySize(1, 1);
-                    sandImg.setOrigin(0, 0);
-                    sandImg.setDepth(1);
+                    // TODO
                 } else if (tile === GRASS_IDX) {
-                    let grassImg = this.scene.add.image(
-                        graphics.x + x,
-                        graphics.y + y,
-                        "grassTileset"
-                    );
-                    grassImg.setDisplaySize(1, 1);
-                    grassImg.setOrigin(0, 0);
-                    grassImg.setDepth(1);
+                    sprite = new Sprite(spritesheetObj.textures.grass1);
                 } else if (tile === ICE_IDX) {
-                    graphics.fillStyle(iceColor);
+                    // graphics.fillStyle(iceColor);
                 }
-                graphics.fillRect(x, y, 1, 1);
+                if (sprite) {
+                    sprite.x = x + OFFSET_X;
+                    sprite.y = y + OFFSET_Y;
+                    sprite.setSize(1.1, 1.1);
+                    sprite.anchor.set(0.05, 0.05);
+
+                    this.container.addChild(sprite);
+                }
             }
         }
-        renderText.endDraw();
-        renderText.setDisplaySize(CHUNK_SIZE, CHUNK_SIZE);
-
-        this.tileMapInfo.set(chunkKey, chunkData);
-        // Raster graphics to texture
-
-        const tex = graphics.generateTexture(
-            `chunk-${chunkKey}`,
-            chunkData.length,
-            chunkData.length
-        );
-        graphics.destroy();
-        const image = this.scene.add.image(
-            chunkX * CHUNK_SIZE,
-            chunkY * CHUNK_SIZE,
-            `chunk-${chunkKey}`
-        );
-        image.setOrigin(0, 0);
-        this.tileMaps.set(chunkKey, image);
     }
 
     removeChunk(chunkX: number, chunkY: number) {
         const chunkKey = `${chunkX},${chunkY}`;
-        const graphics = this.tileMaps.get(chunkKey);
-        if (graphics) {
-            graphics.destroy();
+        const sprite = this.tileMaps.get(chunkKey);
+        if (sprite) {
+            sprite.destroy();
             this.tileMaps.delete(chunkKey);
             this.tileMapInfo.delete(chunkKey);
         }

@@ -5,4 +5,4 @@ export type PlayerInfo = {
     y: number;
 };
 
-export const PLAYER_SPEED = 10;
+export const PLAYER_SPEED = 1;

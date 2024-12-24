@@ -1,15 +1,17 @@
+import { Sprite, type Container } from "pixi.js";
 import type { PlayerBehavior } from "../common/behaviors/PlayerBehavior";
 import type { PlayerInfo } from "../common/player";
+import { spritesheetObj } from "../main";
 
 export class GamePlayer {
-    sprite: Phaser.GameObjects.Image | undefined;
+    sprite: Sprite | undefined;
     behaviors: PlayerBehavior[] = [];
 
-    constructor(public scene: Phaser.Scene, public player: PlayerInfo) {
+    constructor(private root: Container, public player: PlayerInfo) {
         console.log("Creating player", player);
-        this.sprite = scene.add.image(player.x, player.y, "playerImage");
-        this.sprite.setDisplaySize(1, 1);
-        this.sprite.setDepth(1000);
+        this.sprite = new Sprite(spritesheetObj.textures.car);
+        this.sprite.setSize(1, 1);
+        this.sprite.zIndex = 1000;
     }
 
     update(deltaTime: number): void {
@@ -18,7 +20,7 @@ export class GamePlayer {
         }
 
         if (this.sprite) {
-            this.sprite.setPosition(this.player.x, this.player.y);
+            this.sprite.position.set(this.player.x, this.player.y);
         }
     }
 

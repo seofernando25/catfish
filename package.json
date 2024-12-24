@@ -21,15 +21,19 @@
         "vite": "^5.4.10"
     },
     "dependencies": {
+        "@preact/signals": "^2.0.0",
         "@trpc/client": "^11.0.0-rc.648",
         "@trpc/server": "^11.0.0-rc.648",
         "@tweakpane/core": "^2.0.5",
+        "@types/pngjs": "^6.0.5",
         "hono": "^4.6.11",
         "phaser": "^3.87.0",
+        "pixi.js": "^8.6.5",
+        "pngjs": "^7.0.0",
         "rxjs": "^7.8.1",
         "socket.io": "^4.8.1",
         "socket.io-client": "^4.8.1",
-        "tweakpane": "^4.0.5",
-        "zod": "^3.23.8"
+        "tinykeys": "^3.0.0",
+        "tweakpane": "^4.0.5"
     }
 }

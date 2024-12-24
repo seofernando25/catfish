@@ -12,6 +12,7 @@ export type InputCmd = MoveCmd;
 export type ClientToServerEvents = {
     clientOk: () => void;
     moveRequest: (x: number, y: number) => void;
+    ping: (num: number, cb: (num: number) => void) => void;
 };
 
 export type ServerToClientEvents = {

@@ -1,5 +1,5 @@
-import type { ClientSocket } from "../../client/Game";
 import type { GamePlayer } from "../../client/player";
+import type { ClientSocket } from "../../client/socket";
 import type { PlayerInfo } from "../player";
 import { PlayerBehavior } from "./PlayerBehavior";
 
@@ -49,16 +49,18 @@ export class ReconsiliationBehavior extends PlayerBehavior {
 
         const magnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        if (magnitude > 10) {
-            this.gamePlayer.player.x = this.lastSentX;
-            this.gamePlayer.player.y = this.lastSentY;
-            console.log("Reconsiliating player position");
-        }
+        // if (magnitude > 10) {
+        //     this.gamePlayer.player.x = this.lastSentX;
+        //     this.gamePlayer.player.y = this.lastSentY;
+        //     console.log("Reconsiliating player position");
+        // }
+        console.log("X", this.gamePlayer.player.x);
+        console.log("Y", this.gamePlayer.player.y);
 
-        const speed = 0.1;
-        this.gamePlayer.player.x +=
-            (this.lastSentX - this.gamePlayer.player.x) * speed;
-        this.gamePlayer.player.y +=
-            (this.lastSentY - this.gamePlayer.player.y) * speed;
+        // const speed = 0.1;
+        // this.gamePlayer.player.x +=
+        //     (this.lastSentX - this.gamePlayer.player.x) * speed;
+        // this.gamePlayer.player.y +=
+        //     (this.lastSentY - this.gamePlayer.player.y) * speed;
     }
 }

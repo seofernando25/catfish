@@ -1,17 +1,19 @@
-import type { ClientSocket } from "../../client/Game";
 import type { GamePlayer } from "../../client/player";
 import type { TileMapManager } from "../../client/tilemap";
 import { PLAYER_SPEED } from "../player";
 import { PlayerBehavior } from "./PlayerBehavior";
+import type { ClientSocket } from "../../client/socket";
+import { keyboardOrSignal, keyboardSignal } from "../../client/input/events";
+import type { ReadonlySignal } from "@preact/signals";
 
 /**
  * Reconsiliates the player's position with the server's position
  */
 export class WASDMoveBehavior extends PlayerBehavior {
-    left: Phaser.Input.Keyboard.Key | undefined;
-    right: Phaser.Input.Keyboard.Key | undefined;
-    up: Phaser.Input.Keyboard.Key | undefined;
-    down: Phaser.Input.Keyboard.Key | undefined;
+    left: ReadonlySignal<number>;
+    right: ReadonlySignal<number>;
+    up: ReadonlySignal<number>;
+    down: ReadonlySignal<number>;
 
     constructor(
         private gp: GamePlayer,
@@ -20,25 +22,26 @@ export class WASDMoveBehavior extends PlayerBehavior {
     ) {
         super(gp);
 
-        this.left = this.gp.scene.input.keyboard?.addKey(
-            Phaser.Input.Keyboard.KeyCodes.A
-        );
-        this.right = this.gp.scene.input.keyboard?.addKey(
-            Phaser.Input.Keyboard.KeyCodes.D
-        );
-        this.up = this.gp.scene.input.keyboard?.addKey(
-            Phaser.Input.Keyboard.KeyCodes.W
-        );
-        this.down = this.gp.scene.input.keyboard?.addKey(
-            Phaser.Input.Keyboard.KeyCodes.S
-        );
-    }
-
-    dispose(): void {
-        this.left?.destroy();
-        this.right?.destroy();
-        this.up?.destroy();
-        this.down?.destroy();
+        this.left = keyboardOrSignal([
+            { key: "a" },
+            { key: "A" },
+            { key: "ArrowLeft" },
+        ]);
+        this.right = keyboardOrSignal([
+            { key: "d" },
+            { key: "D" },
+            { key: "ArrowRight" },
+        ]);
+        this.up = keyboardOrSignal([
+            { key: "w" },
+            { key: "W" },
+            { key: "ArrowUp" },
+        ]);
+        this.down = keyboardOrSignal([
+            { key: "s" },
+            { key: "S" },
+            { key: "ArrowDown" },
+        ]);
     }
 
     update(deltaTime: number): void {
@@ -47,23 +50,23 @@ export class WASDMoveBehavior extends PlayerBehavior {
         let moveY = 0;
 
         let anyPressed =
-            this.left?.isDown ||
-            this.right?.isDown ||
-            this.up?.isDown ||
-            this.down?.isDown;
+            this.left.value ||
+            this.right.value ||
+            this.up.value ||
+            this.down.value;
         if (!anyPressed) {
             return;
         }
 
-        if (this.left?.isDown) {
+        if (this.left.value) {
             moveX -= 1;
-        } else if (this.right?.isDown) {
+        } else if (this.right.value) {
             moveX += 1;
         }
 
-        if (this.up?.isDown) {
+        if (this.up.value) {
             moveY -= 1;
-        } else if (this.down?.isDown) {
+        } else if (this.down.value) {
             moveY += 1;
         }
 
