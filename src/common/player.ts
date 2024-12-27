@@ -5,4 +5,5 @@ export type PlayerInfo = {
     y: number;
 };
 
-export const PLAYER_SPEED = 1;
+export const PLAYER_SPEED = 2;
+export const PLAYER_RADIUS = 0.25;

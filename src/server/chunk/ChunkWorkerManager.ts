@@ -40,7 +40,6 @@ export class ChunkWorkerManager {
 
     constructor(poolSize: number = navigator.hardwareConcurrency || 4) {
         this.poolSize = poolSize;
-        console.log("Creating worker pool with size", poolSize);
         // Initialize worker pool
         for (let i = 0; i < this.poolSize; i++) {
             const worker = new Worker(workerPath);

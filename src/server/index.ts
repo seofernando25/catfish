@@ -1,5 +1,3 @@
-import { type ServerWebSocket } from "bun";
-import type { WSContext } from "hono/ws";
 import { Server } from "socket.io";
 import type {
     ClientToServerEvents,
@@ -8,14 +6,6 @@ import type {
     SocketData,
 } from "./events";
 import { WorldMan } from "./world";
-
-type PlayerInfo = {
-    x: number;
-    y: number;
-    username: string;
-    id: string;
-    ws: WSContext<ServerWebSocket>;
-};
 
 const io = new Server<
     ClientToServerEvents,

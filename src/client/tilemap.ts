@@ -1,19 +1,46 @@
-import { Sprite, type Container } from "pixi.js";
-import { spritesheetObj } from "../main";
-import { CHUNK_SIZE } from "../server/chunk";
 import {
-    DESERT_IDX,
-    DIRT_IDX,
-    GRASS_IDX,
-    ICE_IDX,
-    LAKE_IDX,
-} from "../server/sampler";
+    InstancedBufferAttribute,
+    InstancedMesh,
+    Object3D,
+    PlaneGeometry,
+    Scene,
+    ShaderMaterial,
+} from "three";
+import { CHUNK_SIZE } from "../server/chunk";
+import { DESERT_IDX, DIRT_IDX, GRASS_IDX, LAKE_IDX } from "../server/sampler";
+import { getUVOffsets, spriteSheetTexture } from "./rendering/textures";
 
+const tilemapMaterial = new ShaderMaterial({
+    vertexShader: `
+        attribute vec4 uvOffsets; 
+        varying vec2 vUv;
+        void main() {
+            vec2 uvMin = uvOffsets.xy; 
+            vec2 uvMax = uvOffsets.zw; 
+            vUv = mix(uvMin, uvMax, uv); 
+
+            gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D atlasTexture;
+        varying vec2 vUv;
+        void main() {
+            gl_FragColor = texture2D(atlasTexture, vUv);
+        }
+    `,
+    uniforms: {
+        atlasTexture: { value: spriteSheetTexture },
+    },
+    transparent: true,
+});
+
+const plane = new PlaneGeometry(1, 1);
 export class TileMapManager {
     tileMapInfo = new Map<string, number[][]>();
-    tileMaps = new Map<string, Sprite>();
+    tileMaps = new Map<string, InstancedMesh>();
 
-    constructor(public container: Container) {}
+    constructor(public scene: Scene) {}
 
     getChunk(x: number, y: number) {
         const chunkKey = `${x},${y}`;
@@ -34,7 +61,6 @@ export class TileMapManager {
     }
 
     addChunk(chunkX: number, chunkY: number, chunkData: number[][]) {
-        console.log("Adding chunk", chunkX, chunkY);
         const chunkKey = `${chunkX},${chunkY}`;
         if (this.tileMaps.has(chunkKey)) {
             return;
@@ -44,39 +70,66 @@ export class TileMapManager {
         const OFFSET_Y = chunkY * CHUNK_SIZE;
         const dim = chunkData.length;
 
+        const instanceCount = dim * dim;
+        const instancedMesh = new InstancedMesh(
+            new PlaneGeometry(1, 1),
+            tilemapMaterial,
+            instanceCount
+        );
+
+        const uvOffsets = new Float32Array(instanceCount * 4);
+        const transformDummy = new Object3D();
+        transformDummy.rotation.set(-Math.PI / 2, 0, 0);
+
+        let index = 0;
         for (let x = 0; x < dim; x++) {
             for (let y = 0; y < dim; y++) {
                 const tile = chunkData[x][y];
-                // const grayness = tile / 255;
-                let sprite: Sprite | null = null;
-                if (tile === LAKE_IDX) {
-                    sprite = new Sprite(spritesheetObj.textures.water1);
-                } else if (tile === DIRT_IDX) {
-                    sprite = new Sprite(spritesheetObj.textures.dirt1);
-                } else if (tile === DESERT_IDX) {
-                    // TODO
-                } else if (tile === GRASS_IDX) {
-                    sprite = new Sprite(spritesheetObj.textures.grass1);
-                } else if (tile === ICE_IDX) {
-                    // graphics.fillStyle(iceColor);
-                }
-                if (sprite) {
-                    sprite.x = x + OFFSET_X;
-                    sprite.y = y + OFFSET_Y;
-                    sprite.setSize(1.1, 1.1);
-                    sprite.anchor.set(0.05, 0.05);
+                const i = x * dim + y;
 
-                    this.container.addChild(sprite);
+                let uvInfo = { u0: 0, v0: 0, u1: 1, v1: 1 };
+
+                if (tile === LAKE_IDX) {
+                    uvInfo = getUVOffsets("water1");
+                } else if (tile === DIRT_IDX) {
+                    uvInfo = getUVOffsets("dirt1");
+                } else if (tile === GRASS_IDX) {
+                    uvInfo = getUVOffsets("grass1");
+                } else if (tile == DESERT_IDX) {
+                    uvInfo = getUVOffsets("sand1");
+                } else {
+                    console.log("Unrecognized tile", tile);
+                    continue; // Skip unrecognized tiles
                 }
+
+                uvOffsets[i * 4 + 0] = uvInfo.u0; // Left
+                uvOffsets[i * 4 + 1] = uvInfo.v0; // Bottom
+                uvOffsets[i * 4 + 2] = uvInfo.u1; // Right
+                uvOffsets[i * 4 + 3] = uvInfo.v1; // Top
+
+                transformDummy.position.set(x, 0, y);
+
+                transformDummy.updateMatrix();
+                instancedMesh.setMatrixAt(index++, transformDummy.matrix);
             }
         }
+        instancedMesh.geometry.setAttribute(
+            "uvOffsets",
+            new InstancedBufferAttribute(uvOffsets, 4)
+        );
+        instancedMesh.position.set(OFFSET_X + 0.5, 0, OFFSET_Y + 0.5);
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        this.tileMaps.set(chunkKey, instancedMesh);
+        this.tileMapInfo.set(chunkKey, chunkData);
+        this.scene.add(instancedMesh);
     }
 
     removeChunk(chunkX: number, chunkY: number) {
+        console.log("Removing chunk", chunkX, chunkY);
         const chunkKey = `${chunkX},${chunkY}`;
-        const sprite = this.tileMaps.get(chunkKey);
-        if (sprite) {
-            sprite.destroy();
+        const instancedMesh = this.tileMaps.get(chunkKey);
+        if (instancedMesh) {
+            this.scene.remove(instancedMesh);
             this.tileMaps.delete(chunkKey);
             this.tileMapInfo.delete(chunkKey);
         }

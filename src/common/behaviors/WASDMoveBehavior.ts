@@ -1,112 +1,129 @@
 import type { GamePlayer } from "../../client/player";
 import type { TileMapManager } from "../../client/tilemap";
-import { PLAYER_SPEED } from "../player";
+import { PLAYER_RADIUS, PLAYER_SPEED } from "../player";
 import { PlayerBehavior } from "./PlayerBehavior";
 import type { ClientSocket } from "../../client/socket";
 import { keyboardOrSignal, keyboardSignal } from "../../client/input/events";
-import type { ReadonlySignal } from "@preact/signals";
+import { effect, type ReadonlySignal } from "@preact/signals";
+import { Ticker } from "../ticker/Ticker";
+import { CameraBehavior } from "./CameraBehavior";
 
 /**
  * Reconsiliates the player's position with the server's position
  */
 export class WASDMoveBehavior extends PlayerBehavior {
-    left: ReadonlySignal<number>;
-    right: ReadonlySignal<number>;
-    up: ReadonlySignal<number>;
-    down: ReadonlySignal<number>;
+    left = keyboardOrSignal([{ key: "a" }, { key: "A" }, { key: "ArrowLeft" }]);
+    right = keyboardOrSignal([
+        { key: "d" },
+        { key: "D" },
+        { key: "ArrowRight" },
+    ]);
+    up = keyboardOrSignal([{ key: "w" }, { key: "W" }, { key: "ArrowUp" }]);
+    down = keyboardOrSignal([{ key: "s" }, { key: "S" }, { key: "ArrowDown" }]);
 
     constructor(
         private gp: GamePlayer,
         private tileMan: TileMapManager,
-        private socket: ClientSocket
+        private socket: ClientSocket,
+        ticker: Ticker
     ) {
         super(gp);
+        let cameraBehavior: CameraBehavior | undefined;
+        setTimeout(() => {
+            // Find CameraBehavior
+            const camBehavior = this.gp.behaviors.find(
+                (b) => b instanceof CameraBehavior
+            );
+            if (camBehavior === undefined) {
+                console.error("CameraBehavior not found");
+            }
 
-        this.left = keyboardOrSignal([
-            { key: "a" },
-            { key: "A" },
-            { key: "ArrowLeft" },
-        ]);
-        this.right = keyboardOrSignal([
-            { key: "d" },
-            { key: "D" },
-            { key: "ArrowRight" },
-        ]);
-        this.up = keyboardOrSignal([
-            { key: "w" },
-            { key: "W" },
-            { key: "ArrowUp" },
-        ]);
-        this.down = keyboardOrSignal([
-            { key: "s" },
-            { key: "S" },
-            { key: "ArrowDown" },
-        ]);
-    }
+            cameraBehavior = camBehavior;
+        }, 0);
 
-    update(deltaTime: number): void {
-        //  region Get move directions
-        let moveX = 0;
-        let moveY = 0;
+        effect(() => {
+            ticker.currentTick.value;
 
-        let anyPressed =
-            this.left.value ||
-            this.right.value ||
-            this.up.value ||
-            this.down.value;
-        if (!anyPressed) {
-            return;
-        }
+            const deltaTime = ticker.deltaTime.value;
 
-        if (this.left.value) {
-            moveX -= 1;
-        } else if (this.right.value) {
-            moveX += 1;
-        }
+            //  region Get move directions
+            let moveX = 0;
+            let moveY = 0;
 
-        if (this.up.value) {
-            moveY -= 1;
-        } else if (this.down.value) {
-            moveY += 1;
-        }
+            let anyPressed =
+                this.left.value ||
+                this.right.value ||
+                this.up.value ||
+                this.down.value;
+            if (!anyPressed) {
+                return;
+            }
 
-        const length = Math.sqrt(moveX * moveX + moveY * moveY);
-        if (length > 0) {
-            moveX /= length;
-            moveY /= length;
-        }
-        // endregion
+            if (this.left.value) {
+                moveX -= 1;
+            } else if (this.right.value) {
+                moveX += 1;
+            }
 
-        // // region Move X
-        // const predictedX = this.gp.player.x + moveX * playerSpeed * deltaTime;
-        // const tile = this.tileMan?.getTile(predictedX, this.gp.player.y);
-        // if (tile === 0) {
-        //     moveX = 0;
-        // }
-        this.gp.player.x += moveX * PLAYER_SPEED * deltaTime;
-        // // endregion
+            if (this.up.value) {
+                moveY -= 1;
+            } else if (this.down.value) {
+                moveY += 1;
+            }
 
-        // // region Move Y
+            // rotate x, y by cameraBehavior.cameraAngle
+            if (cameraBehavior) {
+                const angle = cameraBehavior.cameraAngle + Math.PI / 2;
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                const x = moveX;
+                const y = moveY;
+                moveX = x * sin - y * cos;
+                moveY = x * cos + y * sin;
+            }
 
-        // const predictedY = this.gp.player.y + moveY * playerSpeed * deltaTime;
-        // const tile2 = this.tileMan?.getTile(this.gp.player.x, predictedY);
-        // if (tile2 === 0) {
-        //     moveY = 0;
-        // }
+            const length = Math.sqrt(moveX * moveX + moveY * moveY);
+            if (length > 0) {
+                moveX /= length;
+                moveY /= length;
+            }
+            // endregion
 
-        this.gp.player.y += moveY * PLAYER_SPEED * deltaTime;
-        // // endregion
+            const isCollision = (x, y) => {
+                const offsets = [
+                    [PLAYER_RADIUS, 0],
+                    [-PLAYER_RADIUS, 0],
+                    [0, PLAYER_RADIUS],
+                    [0, -PLAYER_RADIUS],
+                ];
+                for (const [dx, dy] of offsets) {
+                    const tile = this.tileMan?.getTile(x + dx, y + dy);
+                    if (tile === 0) {
+                        return true;
+                    }
+                }
+                return false;
+            };
 
-        // // region Water reconsiliation fallback
-        // const tile3 = this.tileMan?.getTile(this.gp.player.x, this.gp.player.y);
-        // if (tile3 === 0) {
-        //     this.gp.player.y -= 50 * playerSpeed * deltaTime;
-        // }
-        // endregion
-        this.socket.volatile.emit("moveRequest", moveX, moveY);
-    }
+            // region Move X
+            const predictedX =
+                this.gp.player.x + moveX * PLAYER_SPEED * deltaTime;
+            if (isCollision(predictedX, this.gp.player.y)) {
+                moveX = 0; // Stop X movement if collision
+            }
+            this.gp.player.x += moveX * PLAYER_SPEED * deltaTime;
+            // endregion
 
-    fixedUpdate(): void {
-        this.socket.volatile.emit("moveRequest", 0, 0);
+            // region Move Y
+            const predictedY =
+                this.gp.player.y + moveY * PLAYER_SPEED * deltaTime;
+            if (isCollision(this.gp.player.x, predictedY)) {
+                moveY = 0; // Stop Y movement if collision
+            }
+            this.gp.player.y += moveY * PLAYER_SPEED * deltaTime;
+            // endregion
+
+            this.socket.volatile.emit("moveRequest", moveX, moveY);
+        });
     }
 }

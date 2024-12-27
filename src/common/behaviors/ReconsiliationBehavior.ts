@@ -1,6 +1,8 @@
+import { effect } from "@preact/signals";
 import type { GamePlayer } from "../../client/player";
 import type { ClientSocket } from "../../client/socket";
 import type { PlayerInfo } from "../player";
+import { Ticker } from "../ticker/Ticker";
 import { PlayerBehavior } from "./PlayerBehavior";
 
 export class ReconsiliationBehavior extends PlayerBehavior {
@@ -8,7 +10,6 @@ export class ReconsiliationBehavior extends PlayerBehavior {
     lastSentY: number | undefined = undefined;
 
     onSocketDisconnect = (() => {
-        // console.log("Player disconnected");
         this.gamePlayer.dispose();
     }).bind(this);
 
@@ -25,12 +26,22 @@ export class ReconsiliationBehavior extends PlayerBehavior {
         }
     }).bind(this);
 
-    constructor(public gamePlayer: GamePlayer, public socket: ClientSocket) {
+    constructor(
+        public gamePlayer: GamePlayer,
+        public socket: ClientSocket,
+        public ticker: Ticker
+    ) {
         super(gamePlayer);
 
         this.socket.on("player_disconnected", this.onPlayerDisconnected);
         this.socket.on("disconnect", this.onSocketDisconnect);
         this.socket.on("player_info_announce", this.onPlayerInfo);
+
+        effect(() => {
+            this.ticker.currentTick.value;
+
+            this.update(this.ticker.deltaTime.value);
+        });
     }
 
     dispose(): void {
@@ -49,18 +60,16 @@ export class ReconsiliationBehavior extends PlayerBehavior {
 
         const magnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        // if (magnitude > 10) {
-        //     this.gamePlayer.player.x = this.lastSentX;
-        //     this.gamePlayer.player.y = this.lastSentY;
-        //     console.log("Reconsiliating player position");
-        // }
-        console.log("X", this.gamePlayer.player.x);
-        console.log("Y", this.gamePlayer.player.y);
+        if (magnitude > 10) {
+            console.log("Reconsiliation needed");
+            this.gamePlayer.player.x = this.lastSentX;
+            this.gamePlayer.player.y = this.lastSentY;
+        }
 
-        // const speed = 0.1;
-        // this.gamePlayer.player.x +=
-        //     (this.lastSentX - this.gamePlayer.player.x) * speed;
-        // this.gamePlayer.player.y +=
-        //     (this.lastSentY - this.gamePlayer.player.y) * speed;
+        const speed = 0.1;
+        this.gamePlayer.player.x +=
+            (this.lastSentX - this.gamePlayer.player.x) * speed;
+        this.gamePlayer.player.y +=
+            (this.lastSentY - this.gamePlayer.player.y) * speed;
     }
 }

@@ -14,7 +14,11 @@ async function initializePngFilePaths(directory: string) {
 
         if (stat.isDirectory()) {
             await initializePngFilePaths(filePath);
-        } else if (filePath.endsWith(".png") && file !== "spritesheet.png") {
+        } else if (
+            filePath.endsWith(".png") &&
+            file !== "spritesheet.png" &&
+            file !== "skybox.png"
+        ) {
             pngFilePaths.add(filePath);
         }
     }
@@ -28,7 +32,8 @@ const watcher = fs.watch(ASSETS_DIR, { recursive: true }, (event, filename) => {
     if (
         !filename ||
         !filename.endsWith(".png") ||
-        filename === "spritesheet.png"
+        filename === "spritesheet.png" ||
+        filename === "skybox.png"
     )
         return;
 

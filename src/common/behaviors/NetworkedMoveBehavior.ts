@@ -8,7 +8,6 @@ export class NetworkedMoveBehavior extends PlayerBehavior {
     lastSentY: number | undefined = undefined;
 
     onSocketDisconnect = (() => {
-        // console.log("Player disconnected");
         this.gamePlayer.dispose();
     }).bind(this);
 

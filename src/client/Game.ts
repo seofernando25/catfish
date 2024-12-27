@@ -1,87 +1,26 @@
-import { Pane } from "tweakpane";
-
 import { WASDMoveBehavior } from "../common/behaviors/WASDMoveBehavior";
 import { GamePlayer } from "./player";
 import { TileMapManager } from "./tilemap";
 
-import { Application, Container } from "pixi.js";
+import { effect } from "@preact/signals";
+import { Camera, Scene } from "three";
 import { ReconsiliationBehavior } from "../common/behaviors/ReconsiliationBehavior";
 import type { PlayerInfo } from "../common/player";
-import { socket, type ClientSocket } from "./socket";
+import { Ticker } from "../common/ticker/Ticker";
+import { camera } from "./rendering/camera";
+import { socket, waitUntilConnected, type ClientSocket } from "./socket";
+import stats from "./stats";
+import { keyboardOrSignal } from "./input/events";
+import { CameraBehavior } from "../common/behaviors/CameraBehavior";
+import { PlayerSpriteBehavior } from "../common/behaviors/PlayerSpriteBehavior";
 
-const stats = {
-    Connected: false,
-    Id: "",
-    Status: "",
-    Ping: "0",
-};
-
-const pane = new Pane();
-
-pane.addBinding(stats, "Connected", {
-    readonly: true,
-});
-pane.addBinding(stats, "Id", {
-    readonly: true,
-});
-
-pane.addBinding(stats, "Status", {
-    readonly: true,
-});
-
-pane.addBinding(stats, "Ping", {
-    readonly: true,
-});
-
-socket.on("connect", () => {
-    stats.Connected = true;
-    stats.Id = socket.id ?? "Connection Error";
-    stats.Status = "Connected";
-});
-
-socket.on("disconnect", () => {
-    stats.Connected = false;
-    stats.Id = "Disconnected";
-    stats.Status = "Disconnected";
-});
-
-socket.on("connect_error", () => {
-    stats.Connected = false;
-    stats.Id = "Connection Error";
-    stats.Status = "Connection Error";
-});
-
-setInterval(() => {
-    socket.timeout(250).emit("ping", Date.now(), (err, serverTime: number) => {
-        if (err) {
-            stats.Ping = "250+";
-            return;
-        }
-        const deltaMs = Date.now() - serverTime;
-        const deltaS = deltaMs / 1000;
-        stats.Ping = deltaMs.toFixed(0);
-    });
-}, 250);
-
-export async function game(app: Application) {
+export async function game(scene: Scene) {
     let playerInfos: Map<string, PlayerInfo> = new Map();
     let player: GamePlayer | undefined = undefined;
     let players: Map<string, GamePlayer> = new Map();
 
     // Wait for connected
-    console.log("Waiting for connection");
-    await new Promise<void>((resolve) => {
-        if (socket.connected) {
-            resolve();
-        } else {
-            socket.on("connect", () => {
-                resolve();
-            });
-        }
-    });
-    console.log("Connected to server");
-    stats.Connected = true;
-    stats.Id = socket.id ?? "Connection Error";
+    await waitUntilConnected();
 
     socket.on("player_info_announce", (playerInfo: PlayerInfo) => {
         playerInfos.set(playerInfo.playerId, playerInfo);
@@ -114,14 +53,18 @@ export async function game(app: Application) {
             return players.get(playerInfo.playerId)!;
         }
         console.log("Creating networked player", playerInfo.playerId);
-        const newPlayer = new GamePlayer(root, playerInfo);
+        const newPlayer = new GamePlayer(scene, playerInfo, ticker);
 
         newPlayer.behaviors = [
             ...(socket.id === playerInfo.playerId
-                ? [new WASDMoveBehavior(newPlayer, tileMan, socket)]
+                ? [
+                      new WASDMoveBehavior(newPlayer, tileMan, socket, ticker),
+                      new CameraBehavior(newPlayer, ticker, camera),
+                  ]
                 : []),
+            new PlayerSpriteBehavior(newPlayer, ticker),
             // new NetworkedMoveBehavior(player, socket, 0.1),
-            new ReconsiliationBehavior(newPlayer, socket),
+            new ReconsiliationBehavior(newPlayer, socket, ticker),
             // new NetworkPlayerAnnounceBehavior(player, this.wsClient!),
         ];
         players.set(playerInfo.playerId, newPlayer);
@@ -149,44 +92,17 @@ export async function game(app: Application) {
         players.delete(playerId);
     });
 
-    socket.emit("clientOk");
+    let ticker = new Ticker();
 
-    let root = new Container();
-    root.scale.set(20, 20);
-    app.stage.addChild(root);
-
-    let tileMan: TileMapManager = new TileMapManager(root);
-
-    // update
-    app.ticker.minFPS = 20;
-    app.ticker.maxFPS = 20;
-    app.ticker.add((ticker) => {
-        for (const player of players.values()) {
-            console.log(ticker.deltaTime);
-            player.update(ticker.deltaTime / 50);
-        }
-
-        // move root so its centered on the player
-        root.x =
-            app.renderer.width / 2 - (player?.player.x ?? 0) * root.scale.x;
-        root.y =
-            app.renderer.height / 2 - (player?.player.y ?? 0) * root.scale.y;
-
-        // const camera = this.cameras.main;
-        // camera.centerOn(this.player?.player.x ?? 0, this.player?.player.y ?? 0);
+    socket.on("tick_sync", (info) => {
+        ticker.sync(info);
     });
 
-    // fixed update
-    // const onTick = () => {
-    //     for (const player of players.values()) {
-    //         player.update(20 / 1000);
-    //     }
-    // };
+    socket.emit("clientOk");
 
-    // let timer = new GameTimer(20, onTick);
+    let tileMan: TileMapManager = new TileMapManager(scene);
 
     return () => {
-        // timer.stop();
-        root.destroy();
+        // root.destroy();
     };
 }

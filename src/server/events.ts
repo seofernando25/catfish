@@ -7,6 +7,12 @@ export type MoveCmd = {
     y: number;
 };
 
+export type TickerInfo = {
+    server_tick: number;
+    start_t: number;
+    tickrate: number;
+};
+
 export type InputCmd = MoveCmd;
 
 export type ClientToServerEvents = {
@@ -20,7 +26,7 @@ export type ServerToClientEvents = {
     unload_chunk: (chunkX: number, chunkY: number) => void;
     player_info_announce: (playerInfo: PlayerInfo) => void;
     player_disconnected: (playerId: string) => void;
-    tick_sync: (num: number) => void;
+    tick_sync: (info: TickerInfo) => void;
 };
 
 export type InterServerEvents = {

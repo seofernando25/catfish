@@ -1,6 +1,6 @@
 import { effect } from "@preact/signals";
 import type { ServerSocketInstance } from ".";
-import { PLAYER_SPEED } from "../common/player";
+import { PLAYER_RADIUS, PLAYER_SPEED } from "../common/player";
 import { Ticker } from "../common/ticker/Ticker";
 import { CHUNK_SIZE, ChunkManager } from "./chunk";
 import type { ServerSocketClient } from "./events";
@@ -39,30 +39,30 @@ export class WorldMan {
     constructor(public io: ServerSocketInstance) {
         let count = 0;
 
-        effect(() => {
-            console.log(this.ticker.currentTick.value);
-            console.log("Delta", 1 / this.ticker.deltaTime.value);
-        });
-
         this.ticker.tickrate.value = 60;
 
+        effect(() => {
+            this.ticker.currentTick.value;
+            count++;
+            // Every 5 ticks
+            // if (count % 5 === 0) {
+            //     this.io.emit("tick_sync", count);
+            // }
+            (async () => {
+                const socks = await this.io.fetchSockets();
+                for (const sock of socks) {
+                    const data = sock.data;
+                    if (!data || !sock.data?.onTick) {
+                        continue;
+                    }
+                    for (const cb of sock.data?.onTick) {
+                        cb();
+                    }
+                }
+            })();
+        });
+
         // this.ticker.addListener(async (ticker) => {
-        //     console.log("Delta", 1 / ticker.deltaTime());
-        //     count++;
-        //     // Every 5 ticks
-        //     if (count % 5 === 0) {
-        //         this.io.emit("tick_sync", count);
-        //     }
-        //     const socks = await this.io.fetchSockets();
-        //     for (const sock of socks) {
-        //         const data = sock.data;
-        //         if (!data || !sock.data?.onTick) {
-        //             continue;
-        //         }
-        //         for (const cb of sock.data?.onTick) {
-        //             cb();
-        //         }
-        //     }
         // });
         // this.ticker.start();
 
@@ -121,6 +121,13 @@ export class WorldMan {
         }
         console.log("Client", socket.id, "is ready");
 
+        // Send tick info
+        socket.emit("tick_sync", {
+            server_tick: this.ticker.currentTick.value,
+            start_t: this.ticker.startTime.value,
+            tickrate: this.ticker.tickrate.value,
+        });
+
         // Remove player on disconnect
         socket.on("disconnect", () => {
             console.log("Player disconnected", socket.id);
@@ -133,8 +140,8 @@ export class WorldMan {
         socket.data.playerInfo = {
             playerId: socket.id,
             username: "player",
-            x: 0,
-            y: 0,
+            x: 636,
+            y: -751,
         };
 
         socket.data.input_buffer = [];
@@ -172,7 +179,7 @@ export class WorldMan {
                     const chunkX = Math.floor(player.x / CHUNK_SIZE);
                     const chunkY = Math.floor(player.y / CHUNK_SIZE);
 
-                    const chunkRange = 5;
+                    const chunkRange = 2;
                     const chunkPromises: Promise<void>[] = [];
                     for (let i = -chunkRange; i < chunkRange; i++) {
                         for (let j = -chunkRange; j < chunkRange; j++) {
@@ -275,42 +282,75 @@ export class WorldMan {
                         }
                         // endregion
 
+                        const isCollision = async (x, y) => {
+                            const offsets = [
+                                [PLAYER_RADIUS, 0],
+                                [-PLAYER_RADIUS, 0],
+                                [0, PLAYER_RADIUS],
+                                [0, -PLAYER_RADIUS],
+                            ];
+                            for (const [dx, dy] of offsets) {
+                                const tile = await this.chunkMan?.getTile(
+                                    x + dx,
+                                    y + dy
+                                );
+                                if (tile === 0) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        };
+
                         // region Move X
                         const predictedX =
-                            player.x + moveX * PLAYER_SPEED * this.timer.delta;
-                        const tile = await this.chunkMan.getTile(
-                            predictedX,
-                            player.y
-                        );
-
-                        if (tile === 0) {
+                            player.x +
+                            moveX * PLAYER_SPEED * this.ticker.deltaTime.value;
+                        if (await isCollision(predictedX, player.y)) {
                             console.log("hit wall x");
-                            moveX = 0;
+                            moveX = 0; // Stop X movement if collision
                         }
-                        player.x += moveX * PLAYER_SPEED * this.timer.delta;
+                        player.x +=
+                            moveX * PLAYER_SPEED * this.ticker.deltaTime.value;
+
                         // endregion
 
                         // region Move Y
 
+                        // const predictedY =
+                        //     player.y +
+                        //     moveY * PLAYER_SPEED * this.ticker.deltaTime.value;
+                        // const tile2 = await this.chunkMan?.getTile(
+                        //     player.x,
+                        //     predictedY
+                        // );
+                        // if (tile2 === 0) {
+                        //     moveY = 0;
+                        //     console.log("hit wall y");
+                        // }
+
+                        // player.y +=
+                        //     moveY * PLAYER_SPEED * this.ticker.deltaTime.value;
+
                         const predictedY =
-                            player.y + moveY * PLAYER_SPEED * this.timer.delta;
-                        const tile2 = await this.chunkMan?.getTile(
-                            player.x,
-                            predictedY
-                        );
-                        if (tile2 === 0) {
-                            moveY = 0;
+                            player.y +
+                            moveY * PLAYER_SPEED * this.ticker.deltaTime.value;
+
+                        if (await isCollision(player.x, predictedY)) {
                             console.log("hit wall y");
+                            moveY = 0; // Stop Y movement if collision
                         }
 
-                        player.y += moveY * PLAYER_SPEED * this.timer.delta;
+                        player.y +=
+                            moveY * PLAYER_SPEED * this.ticker.deltaTime.value;
+
                         // endregion
+                        // console.log("Player position", player.x, player.y);
                     }
 
                     // Emit the new position to all clients
                     this.io.emit("player_info_announce", player);
 
-                    console.log(player);
+                    // console.log(player);
                 },
             };
         };

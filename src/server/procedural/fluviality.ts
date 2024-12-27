@@ -5,8 +5,8 @@ export function sampleFluviality(x: number, y: number): number {
     const coordY = y / 100.0;
 
     const noise = multi_octave_noise(
-        coordX + 8655.453,
-        coordY + 2342.2342,
+        coordX + 8612355.453,
+        coordY + 2312342.2342,
         8,
         0.5,
         2.0
