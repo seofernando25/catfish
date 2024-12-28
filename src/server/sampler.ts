@@ -5,7 +5,7 @@ import { sampleTemperature } from "./procedural/temperature";
 
 export const LAKE_IDX = 0;
 export const DIRT_IDX = 1;
-export const DESERT_IDX = 2;
+export const SAND_IDX = 2;
 export const GRASS_IDX = 3;
 export const ICE_IDX = 4;
 
@@ -27,7 +27,7 @@ function sampleImpl(x: number, y: number) {
                 return DIRT_IDX;
             }
 
-            return DESERT_IDX;
+            return SAND_IDX;
         }
 
         // return temp * 255;
@@ -39,8 +39,8 @@ function sampleImpl(x: number, y: number) {
         const ranges = [
             // [0, 3, GRASS_IDX],
             [0, 4, DIRT_IDX],
-            [4, 7, GRASS_IDX],
-            [7, 10, DESERT_IDX],
+            [4, 7, SAND_IDX],
+            [7, 10, SAND_IDX],
         ];
 
         for (const [min, max, idx] of ranges) {

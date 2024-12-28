@@ -1,12 +1,13 @@
+import { effect } from "@preact/signals";
+import { keyboardOrSignal } from "../../client/input/events";
 import type { GamePlayer } from "../../client/player";
+import type { ClientSocket } from "../../client/socket";
 import type { TileMapManager } from "../../client/tilemap";
 import { PLAYER_RADIUS, PLAYER_SPEED } from "../player";
-import { PlayerBehavior } from "./PlayerBehavior";
-import type { ClientSocket } from "../../client/socket";
-import { keyboardOrSignal, keyboardSignal } from "../../client/input/events";
-import { effect, type ReadonlySignal } from "@preact/signals";
 import { Ticker } from "../ticker/Ticker";
 import { CameraBehavior } from "./CameraBehavior";
+import { PlayerBehavior } from "./PlayerBehavior";
+import { inUI } from "./GameUIBehavior";
 
 /**
  * Reconsiliates the player's position with the server's position
@@ -41,6 +42,10 @@ export class WASDMoveBehavior extends PlayerBehavior {
             cameraBehavior = camBehavior;
         }, 0);
 
+        // Movement rounding
+        const DECIMAL_PLACES = 8;
+        const ROUND_FACTOR = Math.pow(10, DECIMAL_PLACES);
+
         effect(() => {
             ticker.currentTick.value;
 
@@ -55,7 +60,7 @@ export class WASDMoveBehavior extends PlayerBehavior {
                 this.right.value ||
                 this.up.value ||
                 this.down.value;
-            if (!anyPressed) {
+            if (!anyPressed || inUI.value) {
                 return;
             }
 
@@ -78,8 +83,13 @@ export class WASDMoveBehavior extends PlayerBehavior {
                 const sin = Math.sin(angle);
                 const x = moveX;
                 const y = moveY;
-                moveX = x * sin - y * cos;
-                moveY = x * cos + y * sin;
+
+                moveX =
+                    Math.round((x * sin - y * cos) * ROUND_FACTOR) /
+                    ROUND_FACTOR;
+                moveY =
+                    Math.round((x * cos + y * sin) * ROUND_FACTOR) /
+                    ROUND_FACTOR;
             }
 
             const length = Math.sqrt(moveX * moveX + moveY * moveY);

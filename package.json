@@ -18,11 +18,16 @@
         "vite": "^5.4.10"
     },
     "dependencies": {
+        "@preact/preset-vite": "^2.9.3",
         "@preact/signals": "^2.0.0",
         "@tweakpane/core": "^2.0.5",
+        "@types/howler": "^2.2.12",
         "@types/pngjs": "^6.0.5",
+        "howler": "^2.2.4",
+        "htm": "^3.1.1",
         "pngjs": "^7.0.0",
         "rxjs": "^7.8.1",
+        "sam-js": "^0.3.1",
         "socket.io": "^4.8.1",
         "socket.io-client": "^4.8.1",
         "three": "^0.171.0",

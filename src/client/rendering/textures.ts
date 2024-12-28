@@ -2,14 +2,11 @@ import {
     MeshBasicMaterial,
     NearestFilter,
     PlaneGeometry,
-    SpriteMaterial,
-    Texture,
     TextureLoader,
-    Vector2,
 } from "three";
-import spritesheet from "../../assets/spritesheet.png";
-import atlasData from "../../assets/spritesheet.json";
 import skyPath from "../../assets/skybox.png";
+import atlasData from "../../assets/spritesheet.json";
+import spritesheet from "../../assets/spritesheet.png";
 
 const textureLoader = new TextureLoader();
 export const spriteSheetTexture = await textureLoader.loadAsync(spritesheet);
@@ -92,6 +89,5 @@ export function getSubTextureFromAtlas(tileKey: keyof typeof atlasData.frames) {
         1 - (frame.y + frame.h) / texHeight
     );
     subTexture.repeat.set(frame.w / texWidth, frame.h / texHeight);
-
     return subTexture;
 }

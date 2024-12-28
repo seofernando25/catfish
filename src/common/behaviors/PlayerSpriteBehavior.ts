@@ -5,6 +5,7 @@ import {
     SphereGeometry,
     Sprite,
     SpriteMaterial,
+    Vector2,
 } from "three";
 import type { GamePlayer } from "../../client/player";
 import { getSubTextureFromAtlas } from "../../client/rendering/textures";
@@ -17,28 +18,24 @@ import { PlayerBehavior } from "./PlayerBehavior";
 export class PlayerSpriteBehavior extends PlayerBehavior {
     charL = new SpriteMaterial({
         map: getSubTextureFromAtlas("astrocatL"),
-        side: 2,
         alphaTest: 0.5,
         transparent: true,
     });
 
     charR = new SpriteMaterial({
         map: getSubTextureFromAtlas("astrocatR"),
-        side: 2,
         alphaTest: 0.5,
         transparent: true,
     });
 
     charF = new SpriteMaterial({
         map: getSubTextureFromAtlas("astrocatF"),
-        side: 2,
         alphaTest: 0.5,
         transparent: true,
     });
 
     charB = new SpriteMaterial({
         map: getSubTextureFromAtlas("astrocatB"),
-        side: 2,
         alphaTest: 0.5,
         transparent: true,
     });
@@ -47,6 +44,7 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
 
     constructor(private gp: GamePlayer, ticker: Ticker) {
         super(gp);
+
         this.gp.scene.add(this.sprite);
         this.sprite.center.set(0.5, 0.75);
 
@@ -94,12 +92,35 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
             return diff;
         };
 
+        const animationParams = {
+            bobbingAmplitude: 0.05 * 1,
+            bobbingFrequency: 5 * 5,
+            squishAmplitude: 0.02 * 1,
+            squishFrequency: 5 * 5,
+        };
+
+        const lerp = (start, end, alpha) => start + (end - start) * alpha;
+        const offset = new Vector2(0, 0);
+        let transitionPercent = 0;
+
+        // FIXME: Somehow just using alwaysLastX and alwaysLastY
+        // breaks the direction of the sprite when the camera is rotated
+        let alwaysLastX = 0;
+        let alwaysLastY = 0;
+
         effect(() => {
             ticker.currentTick.value;
             stats.CamAngle = cameraBehavior?.cameraAngle ?? 0;
 
             let px = this.gp.player.x;
             let py = this.gp.player.y;
+
+            let actualDist = Math.sqrt(
+                (px - alwaysLastX) ** 2 + (py - alwaysLastY) ** 2
+            );
+
+            alwaysLastX = px;
+            alwaysLastY = py;
 
             let dx = px - lastX;
             let dy = py - lastY;
@@ -151,10 +172,41 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
             }
 
             sphere.position.set(this.gp.player.x, 0, this.gp.player.y);
-            this.sprite.position.set(this.gp.player.x, 1, this.gp.player.y);
+
+            const elapsed = ticker.currentTick.value * ticker.deltaTime.value;
+
+            const isMoving = actualDist > 0.05;
+            offset.y =
+                animationParams.bobbingAmplitude *
+                Math.sin(elapsed * animationParams.bobbingFrequency);
+            const squish =
+                animationParams.squishAmplitude *
+                Math.sin(elapsed * animationParams.squishFrequency);
+
+            if (isMoving) {
+                transitionPercent += ticker.deltaTime.value * 10;
+            } else {
+                transitionPercent -= ticker.deltaTime.value * 10;
+            }
+
+            transitionPercent = Math.min(1, Math.max(0, transitionPercent));
+            const spriteY = lerp(1, 1 + offset.y, transitionPercent);
+            const scaleX = lerp(1, 1 + squish, transitionPercent);
+            const scaleY = lerp(1, 1 - squish * 0.5, transitionPercent);
+            const scaleZ = lerp(1, 1 + squish, transitionPercent);
+
+            this.sprite.scale.set(scaleX, scaleY, scaleZ);
+            this.sprite.position.set(
+                this.gp.player.x,
+                spriteY,
+                this.gp.player.y
+            );
+
             stats.px = this.gp.player.x ?? -1;
             stats.py = this.gp.player.y ?? -1;
         });
+
+        // Bobbing
     }
 
     dispose(): void {

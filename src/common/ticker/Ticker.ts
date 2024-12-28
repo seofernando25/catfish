@@ -4,7 +4,8 @@ import type { TickerInfo } from "../../server/events";
 export class Ticker {
     tickrate = signal(30); // ticks per second
     currentTick = signal(0);
-    deltaTime = computed(() => this.tickrate.value / 1000);
+    deltaTime = computed(() => 1 / this.tickrate.value);
+    elapsed = computed(() => this.currentTick.value * this.deltaTime.value);
 
     intervalId: Signal<ReturnType<typeof setTimeout> | undefined> =
         signal(undefined);
@@ -46,3 +47,5 @@ export class Ticker {
         // this.offset.value = Date.now() - info.start_t;
     }
 }
+
+export const globalTicker = new Ticker();

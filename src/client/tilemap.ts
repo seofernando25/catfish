@@ -1,46 +1,54 @@
 import {
+    AmbientLight,
     InstancedBufferAttribute,
     InstancedMesh,
+    MeshStandardMaterial,
     Object3D,
     PlaneGeometry,
     Scene,
-    ShaderMaterial,
 } from "three";
 import { CHUNK_SIZE } from "../server/chunk";
-import { DESERT_IDX, DIRT_IDX, GRASS_IDX, LAKE_IDX } from "../server/sampler";
+import { DIRT_IDX, GRASS_IDX, LAKE_IDX, SAND_IDX } from "../server/sampler";
 import { getUVOffsets, spriteSheetTexture } from "./rendering/textures";
 
-const tilemapMaterial = new ShaderMaterial({
-    vertexShader: `
-        attribute vec4 uvOffsets; 
-        varying vec2 vUv;
-        void main() {
-            vec2 uvMin = uvOffsets.xy; 
-            vec2 uvMax = uvOffsets.zw; 
-            vUv = mix(uvMin, uvMax, uv); 
-
-            gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-        }
-    `,
-    fragmentShader: `
-        uniform sampler2D atlasTexture;
-        varying vec2 vUv;
-        void main() {
-            gl_FragColor = texture2D(atlasTexture, vUv);
-        }
-    `,
-    uniforms: {
-        atlasTexture: { value: spriteSheetTexture },
-    },
-    transparent: true,
+const tilemapMaterial = new MeshStandardMaterial({
+    map: spriteSheetTexture,
+    side: 0,
+    metalness: 0.1,
+    roughness: 0.9,
 });
+
+// closer we get to material the color goes normal, further away it gets darker (bluer)
+tilemapMaterial.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+        "#include <common>",
+        `
+        #include <common>
+        attribute vec4 uvOffsets;
+    `
+    );
+
+    shader.vertexShader = shader.vertexShader.replace(
+        "#include <uv_vertex>",
+        `
+        #include <uv_vertex>
+        #ifdef USE_MAP
+            vMapUv = mix(uvOffsets.xy, uvOffsets.zw, uv);
+        #endif
+    `
+    );
+};
 
 const plane = new PlaneGeometry(1, 1);
 export class TileMapManager {
     tileMapInfo = new Map<string, number[][]>();
     tileMaps = new Map<string, InstancedMesh>();
 
-    constructor(public scene: Scene) {}
+    constructor(public scene: Scene) {
+        // Blueish ambient light (underwater)
+        const ambientLight = new AmbientLight(0xddffff, 1.0);
+        scene.add(ambientLight);
+    }
 
     getChunk(x: number, y: number) {
         const chunkKey = `${x},${y}`;
@@ -71,8 +79,9 @@ export class TileMapManager {
         const dim = chunkData.length;
 
         const instanceCount = dim * dim;
+        const floorGeometry = new PlaneGeometry(1, 1);
         const instancedMesh = new InstancedMesh(
-            new PlaneGeometry(1, 1),
+            floorGeometry,
             tilemapMaterial,
             instanceCount
         );
@@ -95,7 +104,7 @@ export class TileMapManager {
                     uvInfo = getUVOffsets("dirt1");
                 } else if (tile === GRASS_IDX) {
                     uvInfo = getUVOffsets("grass1");
-                } else if (tile == DESERT_IDX) {
+                } else if (tile == SAND_IDX) {
                     uvInfo = getUVOffsets("sand1");
                 } else {
                     console.log("Unrecognized tile", tile);
@@ -113,6 +122,7 @@ export class TileMapManager {
                 instancedMesh.setMatrixAt(index++, transformDummy.matrix);
             }
         }
+
         instancedMesh.geometry.setAttribute(
             "uvOffsets",
             new InstancedBufferAttribute(uvOffsets, 4)

@@ -1,17 +1,13 @@
-import { effect } from "@preact/signals";
+import { effect, signal } from "@preact/signals";
+import { Camera } from "three";
 import { keyboardOrSignal } from "../../client/input/events";
 import type { GamePlayer } from "../../client/player";
-import type { ClientSocket } from "../../client/socket";
-import type { TileMapManager } from "../../client/tilemap";
-import { PLAYER_SPEED } from "../player";
 import { Ticker } from "../ticker/Ticker";
 import { PlayerBehavior } from "./PlayerBehavior";
-import { Camera } from "three";
-import stats from "../../client/stats";
+import { inUI } from "./GameUIBehavior";
 
-/**
- * Reconsiliates the player's position with the server's position
- */
+export const globalCameraDist = signal(10);
+
 export class CameraBehavior extends PlayerBehavior {
     left = keyboardOrSignal([{ key: "q" }, { key: "Q" }]);
     right = keyboardOrSignal([{ key: "e" }, { key: "E" }]);
@@ -30,9 +26,9 @@ export class CameraBehavior extends PlayerBehavior {
             ticker.currentTick.value;
 
             // Define bounds
-            const minBound = 5;
-            const maxBound = 20;
-            const defaultSpeed = 3; // Base zoom speed
+            const minBound = 2;
+            const maxBound = 15;
+            const defaultSpeed = 5; // Base zoom speed
 
             // Determine zoom speed dynamically
             let zoomSpeed = defaultSpeed;
@@ -53,13 +49,19 @@ export class CameraBehavior extends PlayerBehavior {
 
             this.cameraDist +=
                 (this.targetCameraDist - this.cameraDist) *
-                ticker.deltaTime.value;
+                ticker.deltaTime.value *
+                10;
+            globalCameraDist.value = this.cameraDist;
         });
 
         let justPressed = false;
 
         effect(() => {
             ticker.currentTick.value;
+
+            if (inUI.value) {
+                return;
+            }
 
             const deltaTime = ticker.deltaTime.value;
 

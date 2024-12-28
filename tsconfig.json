@@ -5,6 +5,7 @@
         "module": "ESNext",
         "moduleResolution": "bundler",
         "resolveJsonModule": true,
+        "experimentalDecorators": true,
         "allowJs": true,
         "checkJs": true,
         "isolatedModules": true,
