@@ -69,6 +69,7 @@ export class CameraBehavior extends PlayerBehavior {
 
             if (cameraMoveDir !== 0 && !justPressed) {
                 justPressed = true;
+                // PI / 4 ~ 45 degrees
                 this.targetCameraAngle += (Math.PI / 4) * cameraMoveDir;
             } else if (cameraMoveDir === 0) {
                 justPressed = false;
@@ -84,9 +85,10 @@ export class CameraBehavior extends PlayerBehavior {
             const offsetX = Math.sin(this.cameraAngle) * this.cameraDist;
             const offsetZ = Math.cos(this.cameraAngle) * this.cameraDist;
 
+            // FIXME: Not straightforward how to configure camera angle
             camera.position.set(
                 (this.gp.player.x ?? 0) + offsetX,
-                this.cameraDist,
+                this.cameraDist / 2,
                 (this.gp.player.y ?? 0) + offsetZ
             );
             camera.lookAt(this.gp.player.x, 0, this.gp.player.y);

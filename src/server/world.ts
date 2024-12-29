@@ -140,8 +140,8 @@ export class WorldMan {
         socket.data.playerInfo = {
             playerId: socket.id,
             username: "player",
-            x: 636,
-            y: -751,
+            x: 0,
+            y: 0,
         };
 
         socket.data.input_buffer = [];

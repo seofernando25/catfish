@@ -12,5 +12,5 @@ export function sampleContinentalness(x: number, y: number): number {
         2.0
     );
 
-    return 0.8;
+    return noise;
 }

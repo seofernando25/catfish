@@ -6,6 +6,7 @@
     "scripts": {
         "dev": "vite",
         "server": "bun run --hot src/server/index.ts",
+        "atlas": "bun run ./tools/pack-a-sprite/index.ts",
         "build": "vite build",
         "preview": "vite preview",
         "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.node.json"
@@ -31,6 +32,7 @@
         "socket.io": "^4.8.1",
         "socket.io-client": "^4.8.1",
         "three": "^0.171.0",
+        "three-subdivide": "^1.1.5",
         "tinykeys": "^3.0.0",
         "tweakpane": "^4.0.5"
     }

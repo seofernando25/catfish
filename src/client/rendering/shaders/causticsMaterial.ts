@@ -69,8 +69,8 @@ export const causticsMaterial = new ShaderMaterial({
             vec2 uv = vUv + causticsOffset;
 
             // Parameters for the Voronoi effect
-            float scale1 = 5.0;
-            float scale2 = 10.0;
+            float scale1 = 50.0;
+            float scale2 = 200.0;
             float distortion1Strength = 0.1;
             float distortion2Strength = 0.15;
             float distortion1Frequency = 5.0;
@@ -138,7 +138,7 @@ export const causticsMaterial = new ShaderMaterial({
     blending: AdditiveBlending,
     transparent: true,
     depthWrite: false,
-    depthTest: false,
+    depthTest: true,
 });
 
 effect(() => {

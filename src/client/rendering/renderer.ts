@@ -1,5 +1,5 @@
 import { effect } from "@preact/signals";
-import { Scene, WebGLRenderer } from "three";
+import { PCFSoftShadowMap, Scene, WebGLRenderer } from "three";
 import { BokehPass } from "three/addons/postprocessing/BokehPass.js";
 import {
     EffectComposer,
@@ -11,6 +11,8 @@ import { camera } from "./camera";
 import { windowHeight, windowPixelRatio, windowWidth } from "./window";
 
 export const renderer = new WebGLRenderer({});
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 document.body.style.overflow = "hidden";
 

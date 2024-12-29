@@ -82,8 +82,18 @@ export async function game(scene: Scene) {
         return newPlayer;
     };
 
+    let toLoad = [];
+
+    setInterval(() => {
+        if (toLoad.length > 0) {
+            console.log("Loading chunk");
+            const { chunkX, chunkY, chunkData } = toLoad.shift();
+            tileMan?.addChunk(chunkX, chunkY, chunkData);
+        }
+    }, 100);
+
     socket.on("load_chunk", (chunkX, chunkY, chunkData) => {
-        tileMan?.addChunk(chunkX, chunkY, chunkData);
+        toLoad.push({ chunkX, chunkY, chunkData });
     });
 
     socket.on("unload_chunk", (chunkX, chunkY) => {
@@ -106,22 +116,22 @@ export async function game(scene: Scene) {
 
     let tileMan: TileMapManager = new TileMapManager(scene);
 
-    const causticsGeometry = new PlaneGeometry(200, 200, 1, 1);
-    const causticsMesh = new Mesh(causticsGeometry, causticsMaterial);
-    causticsMesh.position.y = 0.1;
-    // causticsMesh.position.x = OFFSET_X + dim / 2;
-    // causticsMesh.position.z = OFFSET_Y + dim / 2;
-    causticsMesh.rotation.x = -Math.PI / 2;
-    causticsMaterial.uniforms.opacity.value = 0.1;
+    // const causticsGeometry = new PlaneGeometry(200, 200, 1, 1);
+    // const causticsMesh = new Mesh(causticsGeometry, causticsMaterial);
+    // causticsMesh.position.y = 0.1;
+    // // causticsMesh.position.x = OFFSET_X + dim / 2;
+    // // causticsMesh.position.z = OFFSET_Y + dim / 2;
+    // causticsMesh.rotation.x = -Math.PI / 2;
+    // causticsMaterial.uniforms.opacity.value = 0.8;
 
-    scene.add(causticsMesh);
+    // scene.add(causticsMesh);
 
     effect(() => {
         globalTicker.currentTick.value;
         // Move caustic to player
         if (player) {
-            causticsMesh.position.x = player.player.x;
-            causticsMesh.position.z = player.player.y;
+            // causticsMesh.position.x = player.player.x;
+            // causticsMesh.position.z = player.player.y;
 
             // causticsOffset
             causticsMaterial.uniforms.causticsOffset.value = new Vector2(
