@@ -93,22 +93,53 @@ export async function game(scene: Scene) {
         return newPlayer;
     };
 
-    let toLoad = [];
+    const MAX_BATCH_SIZE = 5;
+    const PROCESS_INTERVAL = 50;
 
-    setInterval(() => {
-        if (toLoad.length > 0) {
-            console.log("Loading chunk");
+    const processChunkQueues = () => {
+        // Process some loads
+        let loadCount = 0;
+        while (loadCount < MAX_BATCH_SIZE && toLoad.length > 0) {
             const { chunkX, chunkY, chunkData, heightData } = toLoad.shift();
             tileMan?.addChunk(chunkX, chunkY, chunkData, heightData);
+            loadCount++;
         }
-    }, 50);
+
+        // Process some unloads
+        let unloadCount = 0;
+        while (unloadCount < MAX_BATCH_SIZE && toUnload.length > 0) {
+            const { chunkX, chunkY } = toUnload.shift();
+            tileMan?.removeChunk(chunkX, chunkY);
+            unloadCount++;
+        }
+    };
+
+    let toLoad = [];
+    let toUnload = [];
+
+    setInterval(() => {
+        processChunkQueues();
+    }, PROCESS_INTERVAL);
 
     socket.on("load_chunk", (chunkX, chunkY, chunkData, heightData) => {
+        const inUnload = toUnload.findIndex(
+            (c) => c.chunkX === chunkX && c.chunkY === chunkY
+        );
+        if (inUnload !== -1) {
+            toUnload.splice(inUnload, 1);
+        }
         toLoad.push({ chunkX, chunkY, chunkData, heightData });
     });
 
     socket.on("unload_chunk", (chunkX, chunkY) => {
-        tileMan?.removeChunk(chunkX, chunkY);
+        const inLoad = toLoad.findIndex(
+            (c) => c.chunkX === chunkX && c.chunkY === chunkY
+        );
+        if (inLoad !== -1) {
+            toLoad.splice(inLoad, 1);
+        }
+
+        toUnload.push({ chunkX, chunkY });
     });
 
     socket.on("player_disconnected", (playerId: string) => {

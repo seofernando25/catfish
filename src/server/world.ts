@@ -2,7 +2,7 @@ import { effect } from "@preact/signals";
 import type { ServerSocketInstance } from ".";
 import { PLAYER_RADIUS, PLAYER_SPEED } from "../common/player";
 import { Ticker } from "../common/ticker/Ticker";
-import { CHUNK_SIZE, ChunkManager } from "./chunk";
+import { CHUNK_RANGE, CHUNK_SIZE, ChunkManager } from "./chunk";
 import type { ServerSocketClient } from "./events";
 
 export class WorldMan {
@@ -152,12 +152,10 @@ export class WorldMan {
                     const playerChunkX = Math.floor(player.x / CHUNK_SIZE);
                     const playerChunkY = Math.floor(player.y / CHUNK_SIZE);
 
-                    const chunkRange = 5;
-
                     // STEP 1: Gather all chunk coords within the range into an array
                     const chunkCoords: [number, number][] = [];
-                    for (let i = -chunkRange; i <= chunkRange; i++) {
-                        for (let j = -chunkRange; j <= chunkRange; j++) {
+                    for (let i = -CHUNK_RANGE; i <= CHUNK_RANGE; i++) {
+                        for (let j = -CHUNK_RANGE; j <= CHUNK_RANGE; j++) {
                             chunkCoords.push([
                                 playerChunkX + i,
                                 playerChunkY + j,
@@ -214,8 +212,8 @@ export class WorldMan {
 
                         // If outside the chunkRange, unload
                         if (
-                            Math.abs(chunkX - playerChunkX) > chunkRange ||
-                            Math.abs(chunkY - playerChunkY) > chunkRange
+                            Math.abs(chunkX - playerChunkX) > CHUNK_RANGE ||
+                            Math.abs(chunkY - playerChunkY) > CHUNK_RANGE
                         ) {
                             socket.emit("unload_chunk", chunkX, chunkY);
                             activeChunks.delete(key);

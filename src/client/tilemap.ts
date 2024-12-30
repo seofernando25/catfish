@@ -214,7 +214,6 @@ export class TileMapManager {
     }
 
     removeChunk(chunkX: number, chunkY: number) {
-        console.log("Removing chunk", chunkX, chunkY);
         const chunkKey = `${chunkX},${chunkY}`;
         const instancedMesh = this.tileMaps.get(chunkKey);
         if (instancedMesh) {

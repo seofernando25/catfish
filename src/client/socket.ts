@@ -29,6 +29,7 @@ socket.on("disconnect", () => {
 });
 
 socket.on("connect_error", () => {
+    console.error("Connection error");
     stats.ConnState = "Connection Error";
 });
 
