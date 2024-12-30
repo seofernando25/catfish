@@ -14,6 +14,7 @@ import { DIRECTIONS, getDirection } from "../angle";
 import { Ticker } from "../ticker/Ticker";
 import { CameraBehavior } from "./CameraBehavior";
 import { PlayerBehavior } from "./PlayerBehavior";
+import { sampleContinentalness } from "../../server/procedural/continentalness";
 
 export class PlayerSpriteBehavior extends PlayerBehavior {
     charL = new SpriteMaterial({
@@ -195,10 +196,13 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
             const scaleY = lerp(1, 1 - squish * 0.5, transitionPercent);
             const scaleZ = lerp(1, 1 + squish, transitionPercent);
 
+            const floorOffset =
+                sampleContinentalness(gp.player.x, gp.player.y) * 50 - 25;
+
             this.sprite.scale.set(scaleX, scaleY, scaleZ);
             this.sprite.position.set(
                 this.gp.player.x,
-                spriteY,
+                spriteY + floorOffset,
                 this.gp.player.y
             );
 

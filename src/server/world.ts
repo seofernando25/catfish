@@ -5,29 +5,6 @@ import { Ticker } from "../common/ticker/Ticker";
 import { CHUNK_SIZE, ChunkManager } from "./chunk";
 import type { ServerSocketClient } from "./events";
 
-function requestAnimationFrame(callback: CallableFunction) {
-    const start = Date.now();
-    let lastTime = start;
-
-    function frame() {
-        const now = Date.now();
-        const elapsed = now - lastTime;
-
-        // Call the callback with the time elapsed since the start
-        callback(now - start);
-
-        // Adjust the next frame to compensate for delays
-        lastTime = now;
-        const delay = Math.max(0, 16 - elapsed); // Target ~60 FPS (16ms/frame)
-        setTimeout(frame, delay);
-    }
-
-    setTimeout(frame, 0);
-}
-
-// @ts-ignore
-globalThis.requestAnimationFrame = requestAnimationFrame;
-
 export class WorldMan {
     chunkMan = new ChunkManager();
     ticker = new Ticker();
@@ -44,10 +21,6 @@ export class WorldMan {
         effect(() => {
             this.ticker.currentTick.value;
             count++;
-            // Every 5 ticks
-            // if (count % 5 === 0) {
-            //     this.io.emit("tick_sync", count);
-            // }
             (async () => {
                 const socks = await this.io.fetchSockets();
                 for (const sock of socks) {
@@ -194,11 +167,15 @@ export class WorldMan {
                             const chunk = this.chunkMan
                                 .getChunk(chunkX + i, chunkY + j)
                                 .then(async (chunk) => {
+                                    const chunkData = chunk.to2DArray();
+                                    const chunkHeightData =
+                                        chunk.toHeight2DArray();
                                     socket.emit(
                                         "load_chunk",
                                         chunkX + i,
                                         chunkY + j,
-                                        chunk.to2DArray()
+                                        chunkData,
+                                        chunkHeightData
                                     );
                                 });
                             chunkPromises.push(chunk);

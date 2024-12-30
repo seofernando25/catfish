@@ -22,7 +22,13 @@ export type ClientToServerEvents = {
 };
 
 export type ServerToClientEvents = {
-    load_chunk: (chunkX: number, chunkY: number, chunkData: number[][]) => void;
+    load_chunk: (
+        chunkX: number,
+        chunkY: number,
+        chunkData: number[][],
+        heightMap: number[][]
+    ) => void;
+
     unload_chunk: (chunkX: number, chunkY: number) => void;
     player_info_announce: (playerInfo: PlayerInfo) => void;
     player_disconnected: (playerId: string) => void;

@@ -1,4 +1,4 @@
-import { computed, effect, Signal, signal } from "@preact/signals";
+import { computed, Signal, signal } from "@preact/signals";
 import type { TickerInfo } from "../../server/events";
 
 export class Ticker {

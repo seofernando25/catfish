@@ -33,7 +33,7 @@ effect(() => {
 
 const outputPass = new OutputPass();
 
-composer.addPass(bokehPass);
+// composer.addPass(bokehPass);
 composer.addPass(outputPass);
 
 effect(() => {

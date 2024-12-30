@@ -9,11 +9,14 @@ export const SAND_IDX = 2;
 export const GRASS_IDX = 3;
 export const ICE_IDX = 4;
 
-// Sample method
-function sampleImpl(x: number, y: number) {
-    const fluviality = sampleFluviality(x, y);
-    const continentalness = sampleContinentalness(x, y);
+// FIXME: Ew...
+let continentalnessCtx = 0;
 
+function sampleImpl(x: number, y: number) {
+    // const fluviality = sampleFluviality(x, y);
+    const fluviality = 1;
+    const continentalness = sampleContinentalness(x, y);
+    continentalnessCtx = continentalness;
     // const t = fluviality * continentalness;
 
     if (continentalness > 0.5) {
@@ -54,7 +57,13 @@ function sampleImpl(x: number, y: number) {
     return LAKE_IDX;
 }
 
-const sampleMemo = new Map<number, number>();
+const sampleMemo = new Map<
+    number,
+    {
+        continentalness: number;
+        value: number;
+    }
+>();
 
 export function sample(x: number, y: number) {
     const k = hash1([x, y]);
@@ -63,6 +72,10 @@ export function sample(x: number, y: number) {
     }
 
     const v = sampleImpl(x, y);
-    sampleMemo.set(k, v);
-    return v;
+    const result = {
+        continentalness: continentalnessCtx,
+        value: v,
+    };
+    sampleMemo.set(k, result);
+    return result;
 }

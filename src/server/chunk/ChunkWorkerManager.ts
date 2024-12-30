@@ -4,9 +4,14 @@ export type ChunkTaskData = {
     chunkSize: number;
 };
 
+export type ChunkData = {
+    tiles: Uint8Array;
+    heights: Float32Array;
+};
+
 export type ChunkTaskResult = {
     taskId: string;
-    result: Uint8Array;
+    result: ChunkData;
 };
 
 export type WorkerTaskData = {
@@ -14,11 +19,6 @@ export type WorkerTaskData = {
     chunkX: number;
     chunkY: number;
     chunkSize: number;
-};
-
-export type WorkerTaskResult = {
-    taskId: string;
-    result: Uint8Array;
 };
 
 // Get path worker relative to meta url
@@ -30,7 +30,7 @@ export class ChunkWorkerManager {
     private taskQueue: Array<{
         taskId: string;
         data: ChunkTaskData;
-        resolve: (value: any) => void;
+        resolve: (value: ChunkData) => void;
         reject: (reason?: any) => void;
     }> = [];
     private activeTasks: Map<
@@ -80,7 +80,7 @@ export class ChunkWorkerManager {
         }
     }
 
-    public async runTask(data: ChunkTaskData): Promise<Uint8Array> {
+    public async runTask(data: ChunkTaskData): Promise<ChunkData> {
         return new Promise((resolve, reject) => {
             const taskId = crypto.randomUUID();
             this.taskQueue.push({ taskId, data, resolve, reject });

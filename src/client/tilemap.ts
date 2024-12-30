@@ -1,30 +1,24 @@
 import {
-    AmbientLight,
-    BoxGeometry,
+    BufferGeometry,
     DataTexture,
-    DirectionalLight,
-    DirectionalLightHelper,
-    HemisphereLight,
-    HemisphereLightHelper,
     Mesh,
-    MeshStandardMaterial,
     MeshToonMaterial,
     NearestFilter,
-    PlaneGeometry,
     RGBAFormat,
     Scene,
-    SphereGeometry,
-    SpotLight,
 } from "three";
+// import { generateChunkTexture } from "../common/chunk/texturing";
+import { getTileSpriteName } from "../common/chunk/util";
+import { getUVOffsets } from "../common/rendering/atlas";
 import { CHUNK_SIZE } from "../server/chunk";
-import { DIRT_IDX, GRASS_IDX, LAKE_IDX, SAND_IDX } from "../server/sampler";
-import {
-    getSubTextureFromAtlas,
-    getUVOffsets,
-    spriteSheetTexture,
-} from "./rendering/textures";
 import { sampleContinentalness } from "../server/procedural/continentalness";
-import { h } from "htm/preact/index.js";
+import {
+    computeUniqueGridVertexNormals,
+    createUniqueGridGeometry,
+    modifyTileHeight,
+    modifyTileUV,
+} from "./chunkGeometry";
+import { spriteSheetTexture } from "./rendering/textures";
 
 // returns a threejs texture from black to white in n tones
 const nToneGradientTexture = (n: number) => {
@@ -52,114 +46,11 @@ const nToneGradientTexture = (n: number) => {
 
 const fiveTone = nToneGradientTexture(15);
 
-function getTileSpriteName(tile: number): string {
-    if (tile === LAKE_IDX) return "water1";
-    if (tile === DIRT_IDX) return "dirt1";
-    if (tile === GRASS_IDX) return "grass1";
-    if (tile === SAND_IDX) return "sand1";
-    // fallback
-    console.warn("Unknown tile type:", tile);
-    return "uv";
-}
-
-export function generateChunkTexture(chunkData: number[][]): DataTexture {
-    const TILE_SIZE = 32;
-    const dim = chunkData.length;
-
-    // Dimensions in pixels of the final chunk texture
-    const canvasWidth = dim * TILE_SIZE;
-    const canvasHeight = dim * TILE_SIZE;
-
-    // Create an offscreen canvas
-    const offscreenCanvas = document.createElement("canvas");
-    offscreenCanvas.width = canvasWidth;
-    offscreenCanvas.height = canvasHeight;
-    const ctx = offscreenCanvas.getContext("2d");
-    if (!ctx) {
-        throw new Error("Could not get 2D context for offscreen canvas");
-    }
-
-    ctx.imageSmoothingEnabled = false;
-
-    // Get the source image for your sprite sheet
-    // (spriteSheetTexture is assumed to be a THREE.Texture)
-    const spriteImage = spriteSheetTexture.image;
-    const spriteWidth = spriteImage.width;
-    const spriteHeight = spriteImage.height;
-
-    // Draw each tile into the correct position on the offscreen canvas
-    for (let x = 0; x < dim; x++) {
-        for (let y = 0; y < dim; y++) {
-            const tileIndex = chunkData[x][y];
-            const tileName = getTileSpriteName(tileIndex);
-
-            const { u0, v0, u1, v1 } = getUVOffsets(tileName as any);
-
-            const realY0 = (1 - v1) * spriteHeight;
-            const realY1 = (1 - v0) * spriteHeight;
-            const realX0 = u0 * spriteWidth;
-            const realX1 = u1 * spriteWidth;
-
-            const srcX = realX0;
-            const srcY = realY0;
-            const srcW = realX1 - realX0;
-            const srcH = realY1 - realY0;
-
-            // Compute where to place the tile in our chunk canvas
-            const destX = x * TILE_SIZE;
-            const destY = y * TILE_SIZE;
-
-            ctx.drawImage(
-                spriteImage,
-                srcX,
-                srcY,
-                srcW,
-                srcH,
-                destX,
-                destY,
-                TILE_SIZE,
-                TILE_SIZE
-            );
-        }
-    }
-
-    // Now convert the canvas pixels to a DataTexture
-    const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-
-    // The raw pixel array (Uint8ClampedArray) needs to be a normal Uint8Array for DataTexture
-    const data = new Uint8Array(imageData.data);
-
-    // Create a DataTexture from this pixel data
-    const dataTex = new DataTexture(
-        data,
-        canvasWidth,
-        canvasHeight,
-        RGBAFormat
-    );
-    dataTex.flipY = true;
-    dataTex.minFilter = NearestFilter;
-    dataTex.magFilter = NearestFilter;
-    dataTex.needsUpdate = true;
-
-    return dataTex;
-}
-
 export class TileMapManager {
     tileMapInfo = new Map<string, number[][]>();
     tileMaps = new Map<string, Mesh>();
 
-    constructor(public scene: Scene) {
-        const light = new DirectionalLight(0xffffff, 3);
-        light.castShadow = true; // default false
-        light.position.set(0, 100, 0);
-
-        scene.add(light);
-
-        // test night day cycle... just rotate the light
-
-        let a = Math.PI / 2 + 0.5;
-        light.position.set(0, Math.sin(a) * 100, Math.cos(a) * 100);
-    }
+    constructor(public scene: Scene) {}
 
     getChunk(x: number, y: number) {
         const chunkKey = `${x},${y}`;
@@ -179,7 +70,12 @@ export class TileMapManager {
         return chunkData[x][y];
     }
 
-    addChunk(chunkX: number, chunkY: number, chunkData: number[][]) {
+    addChunk(
+        chunkX: number,
+        chunkY: number,
+        chunkData: number[][],
+        heightData: number[][]
+    ) {
         const chunkKey = `${chunkX},${chunkY}`;
         if (this.tileMaps.has(chunkKey)) {
             return;
@@ -189,99 +85,24 @@ export class TileMapManager {
         const OFFSET_Y = chunkY * CHUNK_SIZE;
         const dim = chunkData.length;
 
-        const planeGeometry = new PlaneGeometry(dim, dim, dim, dim);
-        planeGeometry.rotateX(-Math.PI / 2);
+        const planeGeometry = createUniqueGridGeometry(dim, dim);
 
-        const heightScale = 50;
-        const getHeightMemo = new Map<string, number>();
-        const getHeight = (x: number, y: number) => {
-            const k = `${x},${y}`;
-            if (getHeightMemo.has(k)) {
-                return getHeightMemo.get(k)!;
-            }
+        this.updateChunkHeight(planeGeometry, chunkX, chunkY, heightData);
 
-            const v = sampleContinentalness(x, y);
-            getHeightMemo.set(k, v);
-            return v;
-        };
-
-        // Modify the geometry to have the correct heights
         for (let x = 0; x < dim; x++) {
-            for (let y = 0; y < dim + 1; y++) {
-                let trueX = x + OFFSET_X;
-                let trueY = y + OFFSET_Y;
-                const tileHeight = getHeight(trueX, trueY);
-                const leftTileHeight = getHeight(trueX - 1, trueY);
-                const rightTileHeight = getHeight(trueX + 1, trueY);
-                const upTileHeight = getHeight(trueX, trueY + 1);
-                const downTileHeight = getHeight(trueX, trueY - 1);
-                const topLeftTileHeight = getHeight(trueX - 1, trueY + 1);
-                const topRightTileHeight = getHeight(trueX + 1, trueY + 1);
-                const bottomLeftTileHeight = getHeight(trueX - 1, trueY - 1);
-                const bottomRightTileHeight = getHeight(trueX + 1, trueY - 1);
+            for (let y = 0; y < dim; y++) {
+                const tileIndex = chunkData[x][y];
+                const tileName = getTileSpriteName(tileIndex);
 
-                const tlIdx = y * (dim + 1) + x; // Top-left
-                const trIdx = tlIdx + 1; // Top-right
-                const blIdx = (y + 1) * (dim + 1) + x; // Bottom-left
-                const brIdx = blIdx + 1; // Bottom-right
+                const uvInfo = getUVOffsets(tileName as any);
 
-                // Average self and neighbors
-                const tlValue =
-                    (tileHeight +
-                        leftTileHeight +
-                        upTileHeight +
-                        topLeftTileHeight) /
-                    4;
-                const trValue =
-                    (tileHeight +
-                        rightTileHeight +
-                        upTileHeight +
-                        topRightTileHeight) /
-                    4;
-                const blValue =
-                    (tileHeight +
-                        leftTileHeight +
-                        downTileHeight +
-                        bottomLeftTileHeight) /
-                    4;
-                const brValue =
-                    (tileHeight +
-                        rightTileHeight +
-                        downTileHeight +
-                        bottomRightTileHeight) /
-                    4;
-
-                // Set the heights to random values for now
-                planeGeometry.attributes.position.setY(
-                    tlIdx,
-                    tlValue * heightScale - heightScale / 2
-                );
-                planeGeometry.attributes.position.setY(
-                    trIdx,
-                    trValue * heightScale - heightScale / 2
-                );
-                planeGeometry.attributes.position.setY(
-                    blIdx,
-                    blValue * heightScale - heightScale / 2
-                );
-                planeGeometry.attributes.position.setY(
-                    brIdx,
-                    brValue * heightScale - heightScale / 2
-                );
-
-                // If last x don't set right
-
-                // planeGeometry.attributes.position.setY(blIdx, blValue);
-                // planeGeometry.attributes.position.setY(brIdx, brValue);
+                modifyTileUV(planeGeometry, x, y, uvInfo, dim);
             }
         }
         planeGeometry.attributes.position.needsUpdate = true;
-        planeGeometry.computeVertexNormals();
-
-        const tex = generateChunkTexture(chunkData);
 
         const solidColorMaterial = new MeshToonMaterial({
-            map: tex,
+            map: spriteSheetTexture,
             gradientMap: fiveTone,
             blending: 0,
         });
@@ -297,6 +118,99 @@ export class TileMapManager {
         this.tileMaps.set(chunkKey, chunkMesh);
         this.tileMapInfo.set(chunkKey, chunkData);
         this.scene.add(chunkMesh);
+    }
+
+    private readonly paddedDim = CHUNK_SIZE + 2;
+    private paddedHeightData = new Float64Array(
+        this.paddedDim * this.paddedDim
+    );
+    async updateChunkHeight(
+        geo: BufferGeometry,
+        chunkX: number,
+        chunkY: number,
+        heightData: number[][]
+    ) {
+        const dim = CHUNK_SIZE;
+
+        const heightScale = 50;
+
+        const OFFSET_X = chunkX * CHUNK_SIZE;
+        const OFFSET_Y = chunkY * CHUNK_SIZE;
+
+        const getIndex = (x: number, y: number) => x * this.paddedDim + y;
+
+        this.paddedHeightData.fill(0);
+        for (let x = 0; x < this.paddedDim; x++) {
+            for (let y = 0; y < this.paddedDim; y++) {
+                const globalX = x - 1 + OFFSET_X;
+                const globalY = y - 1 + OFFSET_Y;
+
+                if (x > 0 && x <= dim && y > 0 && y <= dim) {
+                    this.paddedHeightData[getIndex(x, y)] =
+                        heightData[x - 1][y - 1];
+                } else {
+                    this.paddedHeightData[getIndex(x, y)] =
+                        sampleContinentalness(globalX, globalY);
+                }
+            }
+        }
+        // Iterate over actual chunk size
+        for (let x = 1; x <= dim; x++) {
+            for (let y = 1; y <= dim; y++) {
+                // Precomputed heights using 1D indexing
+                const tileHeight = this.paddedHeightData[getIndex(x, y)];
+                const leftTileHeight =
+                    this.paddedHeightData[getIndex(x - 1, y)];
+                const rightTileHeight =
+                    this.paddedHeightData[getIndex(x + 1, y)];
+                const upTileHeight = this.paddedHeightData[getIndex(x, y - 1)];
+                const downTileHeight =
+                    this.paddedHeightData[getIndex(x, y + 1)];
+                const topLeftTileHeight =
+                    this.paddedHeightData[getIndex(x - 1, y - 1)];
+                const topRightTileHeight =
+                    this.paddedHeightData[getIndex(x + 1, y - 1)];
+                const bottomLeftTileHeight =
+                    this.paddedHeightData[getIndex(x - 1, y + 1)];
+                const bottomRightTileHeight =
+                    this.paddedHeightData[getIndex(x + 1, y + 1)];
+
+                const topPlusLeftHeight = tileHeight + leftTileHeight;
+                // Average self and neighbors
+                const tlValue =
+                    (topPlusLeftHeight + upTileHeight + topLeftTileHeight) *
+                    0.25;
+                const trValue =
+                    (tileHeight +
+                        rightTileHeight +
+                        upTileHeight +
+                        topRightTileHeight) *
+                    0.25;
+                const blValue =
+                    (topPlusLeftHeight +
+                        downTileHeight +
+                        bottomLeftTileHeight) *
+                    0.25;
+                const brValue =
+                    (tileHeight +
+                        rightTileHeight +
+                        downTileHeight +
+                        bottomRightTileHeight) *
+                    0.25;
+
+                modifyTileHeight(
+                    geo,
+                    x - 1,
+                    y - 1,
+                    tlValue * heightScale - heightScale / 2,
+                    trValue * heightScale - heightScale / 2,
+                    blValue * heightScale - heightScale / 2,
+                    brValue * heightScale - heightScale / 2,
+                    dim
+                );
+            }
+        }
+        computeUniqueGridVertexNormals(geo);
     }
 
     removeChunk(chunkX: number, chunkY: number) {

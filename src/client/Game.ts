@@ -2,7 +2,16 @@ import { WASDMoveBehavior } from "../common/behaviors/WASDMoveBehavior";
 import { GamePlayer } from "./player";
 import { TileMapManager } from "./tilemap";
 
-import { Mesh, PlaneGeometry, Scene, Vector2 } from "three";
+import {
+    DirectionalLight,
+    Mesh,
+    MeshBasicMaterial,
+    PlaneGeometry,
+    Scene,
+    Sphere,
+    SphereGeometry,
+    Vector2,
+} from "three";
 import { CameraBehavior } from "../common/behaviors/CameraBehavior";
 import { PlayerSpriteBehavior } from "../common/behaviors/PlayerSpriteBehavior";
 import { ReconsiliationBehavior } from "../common/behaviors/ReconsiliationBehavior";
@@ -13,6 +22,8 @@ import { socket, waitUntilConnected, type ClientSocket } from "./socket";
 import { GameUIBehavior } from "../common/behaviors/GameUIBehavior";
 import { causticsMaterial } from "./rendering/shaders/causticsMaterial";
 import { effect } from "@preact/signals";
+import { SkyMesh } from "three/addons/objects/SkyMesh.js";
+import { skyboxTexture } from "./rendering/textures";
 
 export async function game(scene: Scene) {
     let playerInfos: Map<string, PlayerInfo> = new Map();
@@ -87,13 +98,13 @@ export async function game(scene: Scene) {
     setInterval(() => {
         if (toLoad.length > 0) {
             console.log("Loading chunk");
-            const { chunkX, chunkY, chunkData } = toLoad.shift();
-            tileMan?.addChunk(chunkX, chunkY, chunkData);
+            const { chunkX, chunkY, chunkData, heightData } = toLoad.shift();
+            tileMan?.addChunk(chunkX, chunkY, chunkData, heightData);
         }
-    }, 100);
+    }, 50);
 
-    socket.on("load_chunk", (chunkX, chunkY, chunkData) => {
-        toLoad.push({ chunkX, chunkY, chunkData });
+    socket.on("load_chunk", (chunkX, chunkY, chunkData, heightData) => {
+        toLoad.push({ chunkX, chunkY, chunkData, heightData });
     });
 
     socket.on("unload_chunk", (chunkX, chunkY) => {
@@ -116,27 +127,46 @@ export async function game(scene: Scene) {
 
     let tileMan: TileMapManager = new TileMapManager(scene);
 
-    // const causticsGeometry = new PlaneGeometry(200, 200, 1, 1);
-    // const causticsMesh = new Mesh(causticsGeometry, causticsMaterial);
-    // causticsMesh.position.y = 0.1;
-    // // causticsMesh.position.x = OFFSET_X + dim / 2;
-    // // causticsMesh.position.z = OFFSET_Y + dim / 2;
-    // causticsMesh.rotation.x = -Math.PI / 2;
-    // causticsMaterial.uniforms.opacity.value = 0.8;
+    const causticsGeometry = new PlaneGeometry(1000, 1000, 1, 1);
+    const causticsMesh = new Mesh(causticsGeometry, causticsMaterial);
+    causticsMesh.position.y = 0.1;
+    causticsMesh.rotation.x = -Math.PI / 2;
+    causticsMaterial.uniforms.opacity.value = 0.8;
 
-    // scene.add(causticsMesh);
+    scene.add(causticsMesh);
+
+    // add a skybox
+    const skybox = new SphereGeometry(900, 32, 32);
+    const skyboxMat = new MeshBasicMaterial({
+        map: skyboxTexture,
+        side: 1,
+    });
+    const skyboxMesh = new Mesh(skybox, skyboxMat);
+    scene.add(skyboxMesh);
+
+    const light = new DirectionalLight(0xffffff, 3);
+    light.castShadow = true; // default false
+    const a = Math.PI / 2 + 0.5;
+
+    light.position.y = Math.sin(a);
+    light.position.z = Math.cos(a);
+    scene.add(light);
+
+    // test night day cycle... just rotate the light
 
     effect(() => {
         globalTicker.currentTick.value;
         // Move caustic to player
         if (player) {
-            // causticsMesh.position.x = player.player.x;
-            // causticsMesh.position.z = player.player.y;
+            causticsMesh.position.x = player.player.x;
+            causticsMesh.position.z = player.player.y;
+            skyboxMesh.position.x = player.player.x;
+            skyboxMesh.position.z = player.player.y;
 
             // causticsOffset
             causticsMaterial.uniforms.causticsOffset.value = new Vector2(
-                player.player.x / 200,
-                -player.player.y / 200
+                player.player.x / causticsGeometry.parameters.width,
+                -player.player.y / causticsGeometry.parameters.height
             );
         }
     });

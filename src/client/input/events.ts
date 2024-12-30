@@ -1,12 +1,4 @@
-import { computed, effect, signal, type ReadonlySignal } from "@preact/signals";
-
-type InputMap = {
-    [actionName: string]: {
-        deadzone: number;
-        // Triggers can be:
-        // triggers:
-    };
-};
+import { computed, signal, type ReadonlySignal } from "@preact/signals";
 
 const partialMatch = <T>(event: T, match: Partial<T>) => {
     for (const key in match) {

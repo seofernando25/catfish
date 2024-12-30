@@ -35,6 +35,7 @@ export function ttsSpeak(text: string, voice: number) {
     let sound = new Howl({
         src: [URL.createObjectURL(blob)],
         format: ["wav"],
+        volume: 0.1,
     });
     sound.play();
 }

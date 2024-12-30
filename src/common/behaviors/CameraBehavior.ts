@@ -5,6 +5,7 @@ import type { GamePlayer } from "../../client/player";
 import { Ticker } from "../ticker/Ticker";
 import { PlayerBehavior } from "./PlayerBehavior";
 import { inUI } from "./GameUIBehavior";
+import { sampleContinentalness } from "../../server/procedural/continentalness";
 
 export const globalCameraDist = signal(10);
 
@@ -18,6 +19,8 @@ export class CameraBehavior extends PlayerBehavior {
     cameraSpeed = 1;
     cameraDist = 10;
     targetCameraDist = 10;
+    cameraYOffset = 0;
+    targetCameraYOffset = 0;
 
     constructor(private gp: GamePlayer, ticker: Ticker, camera: Camera) {
         super(gp);
@@ -47,8 +50,16 @@ export class CameraBehavior extends PlayerBehavior {
                 maxBound
             );
 
+            this.targetCameraYOffset =
+                sampleContinentalness(gp.player.x, gp.player.y) * 50 - 25;
+
             this.cameraDist +=
                 (this.targetCameraDist - this.cameraDist) *
+                ticker.deltaTime.value *
+                10;
+
+            this.cameraYOffset +=
+                (this.targetCameraYOffset - this.cameraYOffset) *
                 ticker.deltaTime.value *
                 10;
             globalCameraDist.value = this.cameraDist;
@@ -88,10 +99,14 @@ export class CameraBehavior extends PlayerBehavior {
             // FIXME: Not straightforward how to configure camera angle
             camera.position.set(
                 (this.gp.player.x ?? 0) + offsetX,
-                this.cameraDist / 2,
+                this.cameraDist / 2 + this.cameraYOffset,
                 (this.gp.player.y ?? 0) + offsetZ
             );
-            camera.lookAt(this.gp.player.x, 0, this.gp.player.y);
+            camera.lookAt(
+                this.gp.player.x,
+                this.cameraDist / 4 + this.cameraYOffset,
+                this.gp.player.y
+            );
         });
     }
 }

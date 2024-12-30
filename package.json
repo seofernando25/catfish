@@ -24,6 +24,7 @@
         "@tweakpane/core": "^2.0.5",
         "@types/howler": "^2.2.12",
         "@types/pngjs": "^6.0.5",
+        "canvaskit-wasm": "^0.39.1",
         "howler": "^2.2.4",
         "htm": "^3.1.1",
         "pngjs": "^7.0.0",
