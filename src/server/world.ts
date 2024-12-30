@@ -148,51 +148,71 @@ export class WorldMan {
                         return;
                     }
 
-                    // Calculate the chunk coordinates
-                    const chunkX = Math.floor(player.x / CHUNK_SIZE);
-                    const chunkY = Math.floor(player.y / CHUNK_SIZE);
+                    // Calculate the player's current chunk coordinates
+                    const playerChunkX = Math.floor(player.x / CHUNK_SIZE);
+                    const playerChunkY = Math.floor(player.y / CHUNK_SIZE);
 
-                    const chunkRange = 2;
-                    const chunkPromises: Promise<void>[] = [];
-                    for (let i = -chunkRange; i < chunkRange; i++) {
-                        for (let j = -chunkRange; j < chunkRange; j++) {
-                            const alreadyLoaded = activeChunks.has(
-                                `${chunkX + i},${chunkY + j}`
-                            );
+                    const chunkRange = 5;
 
-                            if (alreadyLoaded) {
-                                continue;
-                            }
-
-                            const chunk = this.chunkMan
-                                .getChunk(chunkX + i, chunkY + j)
-                                .then(async (chunk) => {
-                                    const chunkData = chunk.to2DArray();
-                                    const chunkHeightData =
-                                        chunk.toHeight2DArray();
-                                    socket.emit(
-                                        "load_chunk",
-                                        chunkX + i,
-                                        chunkY + j,
-                                        chunkData,
-                                        chunkHeightData
-                                    );
-                                });
-                            chunkPromises.push(chunk);
-                            activeChunks.add(`${chunkX + i},${chunkY + j}`);
+                    // STEP 1: Gather all chunk coords within the range into an array
+                    const chunkCoords: [number, number][] = [];
+                    for (let i = -chunkRange; i <= chunkRange; i++) {
+                        for (let j = -chunkRange; j <= chunkRange; j++) {
+                            chunkCoords.push([
+                                playerChunkX + i,
+                                playerChunkY + j,
+                            ]);
                         }
                     }
+
+                    // STEP 2: Sort the chunk coords by distance from the player's chunk
+                    chunkCoords.sort(([cxA, cyA], [cxB, cyB]) => {
+                        const distA =
+                            (cxA - playerChunkX) ** 2 +
+                            (cyA - playerChunkY) ** 2;
+                        const distB =
+                            (cxB - playerChunkX) ** 2 +
+                            (cyB - playerChunkY) ** 2;
+                        return distA - distB;
+                    });
+
+                    // STEP 3: Iterate in the sorted order, loading nearest chunks first
+                    const chunkPromises: Promise<void>[] = [];
+                    for (const [cx, cy] of chunkCoords) {
+                        // Check if we already loaded this chunk
+                        const key = `${cx},${cy}`;
+                        if (activeChunks.has(key)) {
+                            continue;
+                        }
+
+                        // Retrieve the chunk and send it to the client
+                        const chunkPromise = this.chunkMan
+                            .getChunk(cx, cy)
+                            .then((chunk) => {
+                                const chunkData = chunk.to2DArray();
+                                const chunkHeightData = chunk.toHeight2DArray();
+                                socket.emit(
+                                    "load_chunk",
+                                    cx,
+                                    cy,
+                                    chunkData,
+                                    chunkHeightData
+                                );
+                            });
+
+                        chunkPromises.push(chunkPromise);
+                        activeChunks.add(key);
+                    }
+
                     await Promise.all(chunkPromises);
 
-                    // Remove chunks that are out of range
-                    for (const [key, _] of activeChunks.entries()) {
+                    // STEP 4: Unload chunks that are now out of range
+                    for (const key of activeChunks) {
                         const [x, y] = key.split(",");
-                        const chunkX = parseInt(x);
-                        const chunkY = parseInt(y);
-                        const [playerChunkX, playerChunkY] = [
-                            Math.floor(player.x / CHUNK_SIZE),
-                            Math.floor(player.y / CHUNK_SIZE),
-                        ];
+                        const chunkX = parseInt(x, 10);
+                        const chunkY = parseInt(y, 10);
+
+                        // If outside the chunkRange, unload
                         if (
                             Math.abs(chunkX - playerChunkX) > chunkRange ||
                             Math.abs(chunkY - playerChunkY) > chunkRange
