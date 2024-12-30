@@ -2,21 +2,28 @@ import { effect } from "@preact/signals";
 import {
     Mesh,
     MeshBasicMaterial,
+    Scene,
     SphereGeometry,
     Sprite,
     SpriteMaterial,
     Vector2,
 } from "three";
-import type { GamePlayer } from "../../client/player";
-import { getSubTextureFromAtlas } from "../../client/rendering/textures";
+import { GameObject } from "../../client/gameObject";
+import {
+    getSubTextureFromAtlas,
+    spritesheetData,
+} from "../../client/rendering/textures";
 import stats from "../../client/stats";
 import { DIRECTIONS, getDirection } from "../angle";
 import { Ticker } from "../ticker/Ticker";
 import { CameraBehavior } from "./CameraBehavior";
-import { PlayerBehavior } from "./PlayerBehavior";
+import { EntityBehavior } from "./PlayerBehavior";
 import { sampleContinentalness } from "../../server/procedural/continentalness";
+import { inject } from "../di";
+import { PlayerInfo, PlayerInfoSymbol } from "../player";
 
-export class PlayerSpriteBehavior extends PlayerBehavior {
+export class PlayerSpriteBehavior extends EntityBehavior {
+    playerInfo = inject<PlayerInfo>(PlayerInfoSymbol);
     charL = new SpriteMaterial({
         map: getSubTextureFromAtlas("astrocatL"),
         alphaTest: 0.5,
@@ -43,10 +50,14 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
 
     sprite = new Sprite(this.charF);
 
-    constructor(private gp: GamePlayer, ticker: Ticker) {
-        super(gp);
+    go = inject(GameObject);
+    scene = inject(Scene);
+    ticker = inject(Ticker);
+    camBehavior = inject(CameraBehavior);
 
-        this.gp.scene.add(this.sprite);
+    constructor() {
+        super();
+        this.scene.add(this.sprite);
         this.sprite.center.set(0.5, 0.75);
 
         let lastX = 0;
@@ -56,30 +67,29 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
 
         // set sprite aspect ratio to be of image
         const imageAspect =
-            this.charB.map.image.width / this.charB.map.image.height;
-        this.sprite.scale.set(1, imageAspect, 1);
+            spritesheetData.frames.astrocatB.frame.w /
+            spritesheetData.frames.astrocatB.frame.h;
 
         const sphere = new Mesh(
             new SphereGeometry(0.25, 32, 32),
             new MeshBasicMaterial({ color: 0x111111 })
         );
-        sphere.scale.set(1, 0.1, 1);
 
-        this.gp.scene.add(sphere);
+        this.scene.add(sphere);
 
         let cameraBehavior: CameraBehavior | undefined;
 
-        queueMicrotask(() => {
-            // Find CameraBehavior
-            const camBehavior = this.gp.behaviors.find(
-                (b) => b instanceof CameraBehavior
-            );
-            if (camBehavior === undefined) {
-                console.error("CameraBehavior not found");
-            }
+        // queueMicrotask(() => {
+        //     // Find CameraBehavior
+        //     const camBehavior = this.go.behaviors.find(
+        //         (b) => b instanceof CameraBehavior
+        //     );
+        //     if (camBehavior === undefined) {
+        //         console.error("CameraBehavior not found");
+        //     }
 
-            cameraBehavior = camBehavior;
-        });
+        //     cameraBehavior = camBehavior;
+        // });
 
         const normalizeAngle = (angle) => {
             return ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
@@ -110,11 +120,11 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
         let alwaysLastY = 0;
 
         effect(() => {
-            ticker.currentTick.value;
+            this.ticker.currentTick.value;
             stats.CamAngle = cameraBehavior?.cameraAngle ?? 0;
 
-            let px = this.gp.player.x;
-            let py = this.gp.player.y;
+            let px = this.playerInfo.x;
+            let py = this.playerInfo.y;
 
             let actualDist = Math.sqrt(
                 (px - alwaysLastX) ** 2 + (py - alwaysLastY) ** 2
@@ -172,9 +182,10 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
                 }
             }
 
-            sphere.position.set(this.gp.player.x, 0, this.gp.player.y);
+            sphere.position.set(this.playerInfo.x, 0, this.playerInfo.y);
 
-            const elapsed = ticker.currentTick.value * ticker.deltaTime.value;
+            const elapsed =
+                this.ticker.currentTick.value * this.ticker.deltaTime.value;
 
             const isMoving = actualDist > 0.05;
             offset.y =
@@ -185,9 +196,9 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
                 Math.sin(elapsed * animationParams.squishFrequency);
 
             if (isMoving) {
-                transitionPercent += ticker.deltaTime.value * 10;
+                transitionPercent += this.ticker.deltaTime.value * 10;
             } else {
-                transitionPercent -= ticker.deltaTime.value * 10;
+                transitionPercent -= this.ticker.deltaTime.value * 10;
             }
 
             transitionPercent = Math.min(1, Math.max(0, transitionPercent));
@@ -197,23 +208,25 @@ export class PlayerSpriteBehavior extends PlayerBehavior {
             const scaleZ = lerp(1, 1 + squish, transitionPercent);
 
             const floorOffset =
-                sampleContinentalness(gp.player.x, gp.player.y) * 50 - 25;
+                sampleContinentalness(this.playerInfo.x, this.playerInfo.y) *
+                    50 -
+                25;
 
-            this.sprite.scale.set(scaleX, scaleY, scaleZ);
+            this.sprite.scale.set(imageAspect * scaleX, scaleY, scaleZ);
             this.sprite.position.set(
-                this.gp.player.x,
+                this.playerInfo.x,
                 spriteY + floorOffset,
-                this.gp.player.y
+                this.playerInfo.y
             );
 
-            stats.px = this.gp.player.x ?? -1;
-            stats.py = this.gp.player.y ?? -1;
+            stats.px = this.playerInfo.x ?? -1;
+            stats.py = this.playerInfo.y ?? -1;
         });
 
         // Bobbing
     }
 
     dispose(): void {
-        this.gp.scene.remove(this.sprite);
+        this.scene.remove(this.sprite);
     }
 }

@@ -14,6 +14,8 @@ spriteSheetTexture.minFilter = NearestFilter;
 spriteSheetTexture.magFilter = NearestFilter;
 spriteSheetTexture.anisotropy = 1;
 
+export const spritesheetData = atlasData;
+
 export const spritesheetMaterial = new MeshBasicMaterial({
     map: spriteSheetTexture,
     transparent: true,

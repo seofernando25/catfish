@@ -5,6 +5,7 @@ import {
     Vector2,
     UniformsLib,
     AdditiveBlending,
+    NormalBlending,
 } from "three";
 import { globalTicker } from "../../../common/ticker/Ticker";
 
@@ -107,8 +108,8 @@ export const causticsMaterial = new ShaderMaterial({
             float edges2 = smoothstep(edge2ThresholdMin, edge2ThresholdMax, edgeDist2);
 
             // Define colors
-            vec3 mainBlue = vec3(0.1, 0.4, 0.6);
-            vec3 darkBlue = vec3(0.0, 0.2, 0.4);
+            vec3 mainBlue = vec3(0.1, 0.2, 0.3);
+            vec3 darkBlue = vec3(0.08, 0.18, 0.28);
             vec3 foamColor = vec3(0.9, 0.9, 0.9);
             vec3 e = vec3(0.0);
 
@@ -135,7 +136,7 @@ export const causticsMaterial = new ShaderMaterial({
             gl_FragColor = vec4(finalColor, opacity);
         }
     `,
-    blending: AdditiveBlending,
+    blending: NormalBlending,
     transparent: true,
     depthWrite: false,
     depthTest: true,

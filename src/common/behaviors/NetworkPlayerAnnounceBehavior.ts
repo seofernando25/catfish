@@ -1,13 +1,13 @@
 import type { RpcClientRx, RpcClientTx } from "../../client/clientRPC";
-import type { GamePlayer } from "../../client/player";
-import { PlayerBehavior } from "./PlayerBehavior";
+import type { GameObject } from "../../client/gameObject";
+import { EntityBehavior } from "./PlayerBehavior";
 
-export class NetworkPlayerAnnounceBehavior extends PlayerBehavior {
+export class NetworkPlayerAnnounceBehavior extends EntityBehavior {
     lastSentX: number = 0;
     lastSentY: number = 0;
 
     constructor(
-        public gamePlayer: GamePlayer,
+        public gamePlayer: GameObject,
         public rpcTx: RpcClientTx,
         public rpcRx: RpcClientRx
     ) {

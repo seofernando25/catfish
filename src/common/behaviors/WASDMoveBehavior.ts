@@ -1,18 +1,27 @@
 import { effect } from "@preact/signals";
 import { keyboardOrSignal } from "../../client/input/events";
-import type { GamePlayer } from "../../client/player";
-import type { ClientSocket } from "../../client/socket";
-import type { TileMapManager } from "../../client/tilemap";
-import { PLAYER_RADIUS, PLAYER_SPEED } from "../player";
+import { GameObject } from "../../client/gameObject";
+import { ClientSocketSymbol, type ClientSocket } from "../../client/socket";
+import { TileMapManager, TileMapManagerSymbol } from "../../client/tilemap";
+import {
+    PLAYER_RADIUS,
+    PLAYER_SPEED,
+    PlayerInfo,
+    PlayerInfoSymbol,
+} from "../player";
 import { Ticker } from "../ticker/Ticker";
 import { CameraBehavior } from "./CameraBehavior";
-import { PlayerBehavior } from "./PlayerBehavior";
+import { EntityBehavior } from "./PlayerBehavior";
 import { inUI } from "./GameUIBehavior";
+import { inject } from "../di";
 
 /**
  * Reconsiliates the player's position with the server's position
  */
-export class WASDMoveBehavior extends PlayerBehavior {
+export class WASDMoveBehavior extends EntityBehavior {
+    playerInfo = inject<PlayerInfo>(PlayerInfoSymbol);
+    go = inject(GameObject);
+
     left = keyboardOrSignal([{ key: "a" }, { key: "A" }, { key: "ArrowLeft" }]);
     right = keyboardOrSignal([
         { key: "d" },
@@ -22,34 +31,22 @@ export class WASDMoveBehavior extends PlayerBehavior {
     up = keyboardOrSignal([{ key: "w" }, { key: "W" }, { key: "ArrowUp" }]);
     down = keyboardOrSignal([{ key: "s" }, { key: "S" }, { key: "ArrowDown" }]);
 
-    constructor(
-        private gp: GamePlayer,
-        private tileMan: TileMapManager,
-        private socket: ClientSocket,
-        ticker: Ticker
-    ) {
-        super(gp);
-        let cameraBehavior: CameraBehavior | undefined;
-        setTimeout(() => {
-            // Find CameraBehavior
-            const camBehavior = this.gp.behaviors.find(
-                (b) => b instanceof CameraBehavior
-            );
-            if (camBehavior === undefined) {
-                console.error("CameraBehavior not found");
-            }
+    tileMan = inject<TileMapManager>(TileMapManagerSymbol);
+    socket = inject<ClientSocket>(ClientSocketSymbol);
+    ticker = inject(Ticker);
+    cameraBehavior = inject(CameraBehavior);
 
-            cameraBehavior = camBehavior;
-        }, 0);
+    constructor() {
+        super();
 
         // Movement rounding
         const DECIMAL_PLACES = 8;
         const ROUND_FACTOR = Math.pow(10, DECIMAL_PLACES);
 
         effect(() => {
-            ticker.currentTick.value;
+            this.ticker.currentTick.value;
 
-            const deltaTime = ticker.deltaTime.value;
+            const deltaTime = this.ticker.deltaTime.value;
 
             //  region Get move directions
             let moveX = 0;
@@ -77,8 +74,8 @@ export class WASDMoveBehavior extends PlayerBehavior {
             }
 
             // rotate x, y by cameraBehavior.cameraAngle
-            if (cameraBehavior) {
-                const angle = cameraBehavior.cameraAngle + Math.PI / 2;
+            if (this.cameraBehavior) {
+                const angle = this.cameraBehavior.cameraAngle + Math.PI / 2;
                 const cos = Math.cos(angle);
                 const sin = Math.sin(angle);
                 const x = moveX;
@@ -117,20 +114,20 @@ export class WASDMoveBehavior extends PlayerBehavior {
 
             // region Move X
             const predictedX =
-                this.gp.player.x + moveX * PLAYER_SPEED * deltaTime;
-            if (isCollision(predictedX, this.gp.player.y)) {
+                this.playerInfo.x + moveX * PLAYER_SPEED * deltaTime;
+            if (isCollision(predictedX, this.playerInfo.y)) {
                 moveX = 0; // Stop X movement if collision
             }
-            this.gp.player.x += moveX * PLAYER_SPEED * deltaTime;
+            this.playerInfo.x += moveX * PLAYER_SPEED * deltaTime;
             // endregion
 
             // region Move Y
             const predictedY =
-                this.gp.player.y + moveY * PLAYER_SPEED * deltaTime;
-            if (isCollision(this.gp.player.x, predictedY)) {
+                this.playerInfo.y + moveY * PLAYER_SPEED * deltaTime;
+            if (isCollision(this.playerInfo.x, predictedY)) {
                 moveY = 0; // Stop Y movement if collision
             }
-            this.gp.player.y += moveY * PLAYER_SPEED * deltaTime;
+            this.playerInfo.y += moveY * PLAYER_SPEED * deltaTime;
             // endregion
 
             this.socket.volatile.emit("moveRequest", moveX, moveY);

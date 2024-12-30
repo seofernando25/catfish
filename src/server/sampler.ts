@@ -41,7 +41,7 @@ function sampleImpl(x: number, y: number) {
         // Temp [9, 10] desert   (2)
         const ranges = [
             // [0, 3, GRASS_IDX],
-            [0, 4, DIRT_IDX],
+            [0, 4, SAND_IDX],
             [4, 7, SAND_IDX],
             [7, 10, SAND_IDX],
         ];

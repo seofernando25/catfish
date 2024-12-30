@@ -1,34 +1,40 @@
 import { WASDMoveBehavior } from "../common/behaviors/WASDMoveBehavior";
-import { GamePlayer } from "./player";
-import { TileMapManager } from "./tilemap";
+import { GameObject } from "./gameObject";
+import { TileMapManager, TileMapManagerSymbol } from "./tilemap";
 
+import { effect } from "@preact/signals";
 import {
+    Camera,
     DirectionalLight,
     Mesh,
     MeshBasicMaterial,
     PlaneGeometry,
     Scene,
-    Sphere,
     SphereGeometry,
     Vector2,
 } from "three";
 import { CameraBehavior } from "../common/behaviors/CameraBehavior";
+import { GameUIBehavior } from "../common/behaviors/GameUIBehavior";
 import { PlayerSpriteBehavior } from "../common/behaviors/PlayerSpriteBehavior";
 import { ReconsiliationBehavior } from "../common/behaviors/ReconsiliationBehavior";
-import type { PlayerInfo } from "../common/player";
+import { provide } from "../common/di";
+import { PlayerInfoSymbol, type PlayerInfo } from "../common/player";
 import { globalTicker, Ticker } from "../common/ticker/Ticker";
 import { camera } from "./rendering/camera";
-import { socket, waitUntilConnected, type ClientSocket } from "./socket";
-import { GameUIBehavior } from "../common/behaviors/GameUIBehavior";
 import { causticsMaterial } from "./rendering/shaders/causticsMaterial";
-import { effect } from "@preact/signals";
-import { SkyMesh } from "three/addons/objects/SkyMesh.js";
 import { skyboxTexture } from "./rendering/textures";
+import {
+    ClientSocketSymbol,
+    socket,
+    waitUntilConnected,
+    type ClientSocket,
+} from "./socket";
+import { tweakpaneRef } from "./stats";
 
 export async function game(scene: Scene) {
     let playerInfos: Map<string, PlayerInfo> = new Map();
-    let player: GamePlayer | undefined = undefined;
-    let players: Map<string, GamePlayer> = new Map();
+    let player: GameObject | undefined = undefined;
+    let players: Map<string, GameObject> = new Map();
 
     // Wait for connected
     await waitUntilConnected();
@@ -56,6 +62,7 @@ export async function game(scene: Scene) {
         playerInfo: PlayerInfo,
         socket: ClientSocket
     ) => {
+        console.log("Creating networked player", playerInfo.playerId);
         if (players.has(playerInfo.playerId)) {
             console.log(
                 "Tried to create networked player that already exists",
@@ -64,24 +71,48 @@ export async function game(scene: Scene) {
             return players.get(playerInfo.playerId)!;
         }
         console.log("Creating networked player", playerInfo.playerId);
-        const newPlayer = new GamePlayer(scene, playerInfo, globalTicker);
+        provide({
+            provide: Ticker,
+            useValue: globalTicker,
+        });
+        provide({
+            provide: PlayerInfoSymbol,
+            useValue: playerInfo,
+        });
+
+        provide({
+            provide: Scene,
+            useValue: scene,
+        });
+
+        provide({
+            provide: Camera,
+            useValue: camera,
+        });
+
+        provide({
+            provide: ClientSocketSymbol,
+            useValue: socket,
+        });
+
+        const newPlayer = new GameObject();
+
+        provide({
+            provide: GameObject,
+            useValue: newPlayer,
+        });
 
         newPlayer.behaviors = [
             ...(socket.id === playerInfo.playerId
                 ? [
-                      new WASDMoveBehavior(
-                          newPlayer,
-                          tileMan,
-                          socket,
-                          globalTicker
-                      ),
-                      new CameraBehavior(newPlayer, globalTicker, camera),
-                      new GameUIBehavior(newPlayer, globalTicker),
+                      new CameraBehavior(),
+                      new WASDMoveBehavior(),
+                      new GameUIBehavior(),
                   ]
                 : []),
-            new PlayerSpriteBehavior(newPlayer, globalTicker),
+            new PlayerSpriteBehavior(),
             // new NetworkedMoveBehavior(player, socket, 0.1),
-            new ReconsiliationBehavior(newPlayer, socket, globalTicker),
+            new ReconsiliationBehavior(),
             // new NetworkPlayerAnnounceBehavior(player, this.wsClient!),
         ];
         players.set(playerInfo.playerId, newPlayer);
@@ -158,11 +189,16 @@ export async function game(scene: Scene) {
 
     let tileMan: TileMapManager = new TileMapManager(scene);
 
+    provide({
+        provide: TileMapManagerSymbol,
+        useValue: tileMan,
+    });
+
     const causticsGeometry = new PlaneGeometry(1000, 1000, 1, 1);
     const causticsMesh = new Mesh(causticsGeometry, causticsMaterial);
     causticsMesh.position.y = 0.1;
     causticsMesh.rotation.x = -Math.PI / 2;
-    causticsMaterial.uniforms.opacity.value = 0.8;
+    causticsMaterial.uniforms.opacity.value = 0.9;
 
     scene.add(causticsMesh);
 
@@ -175,9 +211,23 @@ export async function game(scene: Scene) {
     const skyboxMesh = new Mesh(skybox, skyboxMat);
     scene.add(skyboxMesh);
 
-    const light = new DirectionalLight(0xffffff, 3);
+    const light = new DirectionalLight(0xffffff, 1);
     light.castShadow = true; // default false
     const a = Math.PI / 2 + 0.5;
+    // Tweakpane color
+    tweakpaneRef.addBinding(light, "color", {
+        label: "Light Color",
+        color: {
+            type: "float",
+        },
+    });
+
+    tweakpaneRef.addBinding(skyboxMat, "color", {
+        label: "Skybox Tint",
+        color: {
+            type: "float",
+        },
+    });
 
     light.position.y = Math.sin(a);
     light.position.z = Math.cos(a);
@@ -188,16 +238,18 @@ export async function game(scene: Scene) {
     effect(() => {
         globalTicker.currentTick.value;
         // Move caustic to player
+
+        const player = playerInfos.get(socket.id);
         if (player) {
-            causticsMesh.position.x = player.player.x;
-            causticsMesh.position.z = player.player.y;
-            skyboxMesh.position.x = player.player.x;
-            skyboxMesh.position.z = player.player.y;
+            causticsMesh.position.x = player.x;
+            causticsMesh.position.z = player.y;
+            skyboxMesh.position.x = player.x;
+            skyboxMesh.position.z = player.y;
 
             // causticsOffset
             causticsMaterial.uniforms.causticsOffset.value = new Vector2(
-                player.player.x / causticsGeometry.parameters.width,
-                -player.player.y / causticsGeometry.parameters.height
+                player.x / causticsGeometry.parameters.width,
+                -player.y / causticsGeometry.parameters.height
             );
         }
     });

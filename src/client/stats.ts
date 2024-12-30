@@ -11,37 +11,37 @@ export const stats = {
     PlayerDir: 0,
 };
 
-const pane = new Pane();
+export const tweakpaneRef = new Pane();
 
-pane.addBinding(stats, "ConnState", {
+tweakpaneRef.addBinding(stats, "ConnState", {
     readonly: true,
 });
 
-pane.addBinding(stats, "px", {
+tweakpaneRef.addBinding(stats, "px", {
     readonly: true,
 });
 
-pane.addBinding(stats, "py", {
+tweakpaneRef.addBinding(stats, "py", {
     readonly: true,
 });
 
-pane.addBinding(stats, "Id", {
+tweakpaneRef.addBinding(stats, "Id", {
     readonly: true,
 });
 
-pane.addBinding(stats, "Status", {
+tweakpaneRef.addBinding(stats, "Status", {
     readonly: true,
 });
 
-pane.addBinding(stats, "Ping", {
+tweakpaneRef.addBinding(stats, "Ping", {
     readonly: true,
 });
 
-pane.addBinding(stats, "CamAngle", {
+tweakpaneRef.addBinding(stats, "CamAngle", {
     readonly: true,
 });
 
-pane.addBinding(stats, "PlayerDir", {
+tweakpaneRef.addBinding(stats, "PlayerDir", {
     readonly: true,
 });
 

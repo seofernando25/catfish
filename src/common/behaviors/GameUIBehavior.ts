@@ -1,14 +1,15 @@
 import { computed, effect, Signal, signal, useSignal } from "@preact/signals";
 import { Camera } from "three";
 import { keyboardOrSignal } from "../../client/input/events";
-import type { GamePlayer } from "../../client/player";
+import { GameObject } from "../../client/gameObject";
 import { Ticker } from "../ticker/Ticker";
-import { PlayerBehavior } from "./PlayerBehavior";
+import { EntityBehavior } from "./PlayerBehavior";
 import htm from "htm";
 import { h } from "htm/preact/index.js";
 import { createRef, render } from "preact";
 import { useEffect } from "preact/hooks";
 import { ttsSpeak } from "../../client/tts";
+import { inject } from "../di";
 
 const html = htm.bind(h);
 
@@ -122,16 +123,17 @@ window.document.body.appendChild(container);
 
 render(html`<${ChatBox} />`, container);
 
-export class GameUIBehavior extends PlayerBehavior {
+export class GameUIBehavior extends EntityBehavior {
     toggle = keyboardOrSignal([{ key: "i" }, { key: "I" }]);
+    ticker = inject(Ticker);
+    go = inject(GameObject);
 
-    constructor(private gp: GamePlayer, ticker: Ticker) {
-        super(gp);
-
+    constructor() {
+        super();
         let justPressed = false;
 
         effect(() => {
-            ticker.currentTick.value;
+            this.ticker.currentTick.value;
 
             if (this.toggle.value && !justPressed) {
                 justPressed = true;

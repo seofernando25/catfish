@@ -1,37 +1,38 @@
 import { effect } from "@preact/signals";
-import type { GamePlayer } from "../../client/player";
-import type { ClientSocket } from "../../client/socket";
-import type { PlayerInfo } from "../player";
+import { GameObject } from "../../client/gameObject";
+import { ClientSocketSymbol, type ClientSocket } from "../../client/socket";
+import { PlayerInfoSymbol, type PlayerInfo } from "../player";
 import { Ticker } from "../ticker/Ticker";
-import { PlayerBehavior } from "./PlayerBehavior";
+import { EntityBehavior } from "./PlayerBehavior";
+import { inject } from "../di";
 
-export class ReconsiliationBehavior extends PlayerBehavior {
+export class ReconsiliationBehavior extends EntityBehavior {
+    playerInfo = inject<PlayerInfo>(PlayerInfoSymbol);
     lastSentX: number | undefined = undefined;
     lastSentY: number | undefined = undefined;
+    go = inject(GameObject);
+    socket = inject<ClientSocket>(ClientSocketSymbol);
+    ticker = inject(Ticker);
 
     onSocketDisconnect = (() => {
-        this.gamePlayer.dispose();
+        this.go.dispose();
     }).bind(this);
 
     onPlayerInfo = ((pi: PlayerInfo) => {
-        if (pi.playerId === this.gamePlayer.player.playerId) {
+        if (pi.playerId === this.playerInfo.playerId) {
             this.lastSentX = pi.x;
             this.lastSentY = pi.y;
         }
     }).bind(this);
 
     onPlayerDisconnected = ((playerId: string) => {
-        if (playerId === this.gamePlayer.player.playerId) {
-            this.gamePlayer.dispose();
+        if (playerId === this.playerInfo.playerId) {
+            this.go.dispose();
         }
     }).bind(this);
 
-    constructor(
-        public gamePlayer: GamePlayer,
-        public socket: ClientSocket,
-        public ticker: Ticker
-    ) {
-        super(gamePlayer);
+    constructor() {
+        super();
 
         this.socket.on("player_disconnected", this.onPlayerDisconnected);
         this.socket.on("disconnect", this.onSocketDisconnect);
@@ -55,21 +56,19 @@ export class ReconsiliationBehavior extends PlayerBehavior {
             return;
         }
 
-        const deltaX = this.gamePlayer.player.x - this.lastSentX;
-        const deltaY = this.gamePlayer.player.y - this.lastSentY;
+        const deltaX = this.playerInfo.x - this.lastSentX;
+        const deltaY = this.playerInfo.y - this.lastSentY;
 
         const magnitude = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
         if (magnitude > 10) {
             console.log("Reconsiliation needed");
-            this.gamePlayer.player.x = this.lastSentX;
-            this.gamePlayer.player.y = this.lastSentY;
+            this.playerInfo.x = this.lastSentX;
+            this.playerInfo.y = this.lastSentY;
         }
 
         const speed = 0.1;
-        this.gamePlayer.player.x +=
-            (this.lastSentX - this.gamePlayer.player.x) * speed;
-        this.gamePlayer.player.y +=
-            (this.lastSentY - this.gamePlayer.player.y) * speed;
+        this.playerInfo.x += (this.lastSentX - this.playerInfo.x) * speed;
+        this.playerInfo.y += (this.lastSentY - this.playerInfo.y) * speed;
     }
 }

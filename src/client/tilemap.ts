@@ -19,7 +19,9 @@ import {
     modifyTileUV,
 } from "./chunkGeometry";
 import { spriteSheetTexture } from "./rendering/textures";
+import { provide } from "../common/di";
 
+export const TERRAIN_HEIGHT_SCALE = 50;
 // returns a threejs texture from black to white in n tones
 const nToneGradientTexture = (n: number) => {
     // Create w x h (n x 1) texture
@@ -45,6 +47,8 @@ const nToneGradientTexture = (n: number) => {
 };
 
 const fiveTone = nToneGradientTexture(15);
+
+export const TileMapManagerSymbol = Symbol("TileMapManager");
 
 export class TileMapManager {
     tileMapInfo = new Map<string, number[][]>();
@@ -132,8 +136,6 @@ export class TileMapManager {
     ) {
         const dim = CHUNK_SIZE;
 
-        const heightScale = 50;
-
         const OFFSET_X = chunkX * CHUNK_SIZE;
         const OFFSET_Y = chunkY * CHUNK_SIZE;
 
@@ -202,10 +204,10 @@ export class TileMapManager {
                     geo,
                     x - 1,
                     y - 1,
-                    tlValue * heightScale - heightScale / 2,
-                    trValue * heightScale - heightScale / 2,
-                    blValue * heightScale - heightScale / 2,
-                    brValue * heightScale - heightScale / 2,
+                    tlValue * TERRAIN_HEIGHT_SCALE - TERRAIN_HEIGHT_SCALE / 2,
+                    trValue * TERRAIN_HEIGHT_SCALE - TERRAIN_HEIGHT_SCALE / 2,
+                    blValue * TERRAIN_HEIGHT_SCALE - TERRAIN_HEIGHT_SCALE / 2,
+                    brValue * TERRAIN_HEIGHT_SCALE - TERRAIN_HEIGHT_SCALE / 2,
                     dim
                 );
             }

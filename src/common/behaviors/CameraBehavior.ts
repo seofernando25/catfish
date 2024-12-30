@@ -1,15 +1,19 @@
 import { effect, signal } from "@preact/signals";
 import { Camera } from "three";
 import { keyboardOrSignal } from "../../client/input/events";
-import type { GamePlayer } from "../../client/player";
+import { GameObject } from "../../client/gameObject";
 import { Ticker } from "../ticker/Ticker";
-import { PlayerBehavior } from "./PlayerBehavior";
+import { EntityBehavior } from "./PlayerBehavior";
 import { inUI } from "./GameUIBehavior";
 import { sampleContinentalness } from "../../server/procedural/continentalness";
+import { inject, provide } from "../di";
+import { camera } from "../../client/rendering/camera";
+import { PlayerInfo, PlayerInfoSymbol } from "../player";
 
 export const globalCameraDist = signal(10);
 
-export class CameraBehavior extends PlayerBehavior {
+export class CameraBehavior extends EntityBehavior {
+    playerInfo = inject<PlayerInfo>(PlayerInfoSymbol);
     left = keyboardOrSignal([{ key: "q" }, { key: "Q" }]);
     right = keyboardOrSignal([{ key: "e" }, { key: "E" }]);
     zoomIn = keyboardOrSignal([{ key: "z" }, { key: "Z" }]);
@@ -22,11 +26,20 @@ export class CameraBehavior extends PlayerBehavior {
     cameraYOffset = 0;
     targetCameraYOffset = 0;
 
-    constructor(private gp: GamePlayer, ticker: Ticker, camera: Camera) {
-        super(gp);
+    gp = inject(GameObject);
+    ticker = inject(Ticker);
+    camera = inject(Camera);
+
+    constructor() {
+        super();
+
+        provide({
+            provide: CameraBehavior,
+            useValue: this,
+        });
 
         effect(() => {
-            ticker.currentTick.value;
+            this.ticker.currentTick.value;
 
             // Define bounds
             const minBound = 2;
@@ -37,11 +50,13 @@ export class CameraBehavior extends PlayerBehavior {
             let zoomSpeed = defaultSpeed;
 
             if (this.zoomIn.value) {
-                this.targetCameraDist -= zoomSpeed * ticker.deltaTime.value;
+                this.targetCameraDist -=
+                    zoomSpeed * this.ticker.deltaTime.value;
             }
 
             if (this.zoomOut.value) {
-                this.targetCameraDist += defaultSpeed * ticker.deltaTime.value;
+                this.targetCameraDist +=
+                    defaultSpeed * this.ticker.deltaTime.value;
             }
 
             // Clamp target distance to avoid exceeding bounds
@@ -51,16 +66,18 @@ export class CameraBehavior extends PlayerBehavior {
             );
 
             this.targetCameraYOffset =
-                sampleContinentalness(gp.player.x, gp.player.y) * 50 - 25;
+                sampleContinentalness(this.playerInfo.x, this.playerInfo.y) *
+                    50 -
+                25;
 
             this.cameraDist +=
                 (this.targetCameraDist - this.cameraDist) *
-                ticker.deltaTime.value *
+                this.ticker.deltaTime.value *
                 10;
 
             this.cameraYOffset +=
                 (this.targetCameraYOffset - this.cameraYOffset) *
-                ticker.deltaTime.value *
+                this.ticker.deltaTime.value *
                 10;
             globalCameraDist.value = this.cameraDist;
         });
@@ -68,13 +85,13 @@ export class CameraBehavior extends PlayerBehavior {
         let justPressed = false;
 
         effect(() => {
-            ticker.currentTick.value;
+            this.ticker.currentTick.value;
 
             if (inUI.value) {
                 return;
             }
 
-            const deltaTime = ticker.deltaTime.value;
+            const deltaTime = this.ticker.deltaTime.value;
 
             let cameraMoveDir = this.left.value - this.right.value;
 
@@ -91,21 +108,21 @@ export class CameraBehavior extends PlayerBehavior {
         });
 
         effect(() => {
-            ticker.currentTick.value;
+            this.ticker.currentTick.value;
 
             const offsetX = Math.sin(this.cameraAngle) * this.cameraDist;
             const offsetZ = Math.cos(this.cameraAngle) * this.cameraDist;
 
             // FIXME: Not straightforward how to configure camera angle
             camera.position.set(
-                (this.gp.player.x ?? 0) + offsetX,
+                (this.playerInfo.x ?? 0) + offsetX,
                 this.cameraDist / 2 + this.cameraYOffset,
-                (this.gp.player.y ?? 0) + offsetZ
+                (this.playerInfo.y ?? 0) + offsetZ
             );
             camera.lookAt(
-                this.gp.player.x,
-                this.cameraDist / 4 + this.cameraYOffset,
-                this.gp.player.y
+                this.playerInfo.x,
+                this.cameraYOffset,
+                this.playerInfo.y
             );
         });
     }

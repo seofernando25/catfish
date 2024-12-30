@@ -1,7 +1,7 @@
-import type { GamePlayer } from "../../client/player";
+import type { GameObject } from "../../client/gameObject";
 
-export abstract class PlayerBehavior {
-    constructor(public gamePlayer: GamePlayer) {}
+export abstract class EntityBehavior {
+    constructor() {}
 
     dispose(): void {}
 }

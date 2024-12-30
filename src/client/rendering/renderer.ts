@@ -31,10 +31,10 @@ effect(() => {
     bokehPass.uniforms["focus"].value = globalCameraDist.value;
 });
 
-const outputPass = new OutputPass();
+// const outputPass = new OutputPass();
 
 // composer.addPass(bokehPass);
-composer.addPass(outputPass);
+// composer.addPass(outputPass);
 
 effect(() => {
     renderer.setPixelRatio(windowPixelRatio.value);

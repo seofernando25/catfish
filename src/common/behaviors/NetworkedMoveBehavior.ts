@@ -1,9 +1,9 @@
 import type { ClientSocket } from "../../client/Game";
-import type { GamePlayer } from "../../client/player";
+import type { GameObject } from "../../client/gameObject";
 import type { PlayerInfo } from "../player";
-import { PlayerBehavior } from "./PlayerBehavior";
+import { EntityBehavior } from "./PlayerBehavior";
 
-export class NetworkedMoveBehavior extends PlayerBehavior {
+export class NetworkedMoveBehavior extends EntityBehavior {
     lastSentX: number | undefined = undefined;
     lastSentY: number | undefined = undefined;
 
@@ -25,7 +25,7 @@ export class NetworkedMoveBehavior extends PlayerBehavior {
     }).bind(this);
 
     constructor(
-        public gamePlayer: GamePlayer,
+        public gamePlayer: GameObject,
         public socket: ClientSocket,
         public reconsiliationSpeed: number = 0.1
     ) {
