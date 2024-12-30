@@ -9,6 +9,7 @@ import {
 import { globalCameraDist } from "../../common/behaviors/CameraBehavior";
 import { camera } from "./camera";
 import { windowHeight, windowPixelRatio, windowWidth } from "./window";
+import { tweakpaneRef } from "../stats";
 
 export const renderer = new WebGLRenderer({});
 renderer.shadowMap.enabled = true;
@@ -42,6 +43,16 @@ effect(() => {
     composer.setSize(windowWidth.value, windowHeight.value);
 });
 
+renderer.info.autoReset = false;
+const renderInfo = { rendererInfo: renderer.info.render.calls };
+tweakpaneRef.addBinding(renderInfo, "rendererInfo", {
+    label: "Renderer Info",
+    expanded: false,
+    readonly: true,
+});
 renderer.setAnimationLoop(() => {
     composer.render();
+    renderInfo.rendererInfo = renderer.info.render.calls;
+    tweakpaneRef.refresh();
+    renderer.info.reset();
 });

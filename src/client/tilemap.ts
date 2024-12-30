@@ -50,9 +50,17 @@ const fiveTone = nToneGradientTexture(15);
 
 export const TileMapManagerSymbol = Symbol("TileMapManager");
 
+const solidColorMaterial = new MeshToonMaterial({
+    map: spriteSheetTexture,
+    gradientMap: fiveTone,
+    blending: 0,
+});
+
 export class TileMapManager {
     tileMapInfo = new Map<string, number[][]>();
     tileMaps = new Map<string, Mesh>();
+    loadedCount = 0;
+    chunkPlaneGeometry = createUniqueGridGeometry(CHUNK_SIZE, CHUNK_SIZE);
 
     constructor(public scene: Scene) {}
 
@@ -80,6 +88,7 @@ export class TileMapManager {
         chunkData: number[][],
         heightData: number[][]
     ) {
+        this.loadedCount++;
         const chunkKey = `${chunkX},${chunkY}`;
         if (this.tileMaps.has(chunkKey)) {
             return;
@@ -88,8 +97,7 @@ export class TileMapManager {
         const OFFSET_X = chunkX * CHUNK_SIZE;
         const OFFSET_Y = chunkY * CHUNK_SIZE;
         const dim = chunkData.length;
-
-        const planeGeometry = createUniqueGridGeometry(dim, dim);
+        const planeGeometry = this.chunkPlaneGeometry.clone();
 
         this.updateChunkHeight(planeGeometry, chunkX, chunkY, heightData);
 
@@ -104,12 +112,6 @@ export class TileMapManager {
             }
         }
         planeGeometry.attributes.position.needsUpdate = true;
-
-        const solidColorMaterial = new MeshToonMaterial({
-            map: spriteSheetTexture,
-            gradientMap: fiveTone,
-            blending: 0,
-        });
 
         const chunkMesh = new Mesh(planeGeometry, solidColorMaterial);
 
@@ -219,6 +221,7 @@ export class TileMapManager {
         const chunkKey = `${chunkX},${chunkY}`;
         const instancedMesh = this.tileMaps.get(chunkKey);
         if (instancedMesh) {
+            this.loadedCount--;
             this.scene.remove(instancedMesh);
             this.tileMaps.delete(chunkKey);
             this.tileMapInfo.delete(chunkKey);

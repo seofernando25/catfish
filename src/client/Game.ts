@@ -246,11 +246,10 @@ export async function game(scene: Scene) {
             skyboxMesh.position.x = player.x;
             skyboxMesh.position.z = player.y;
 
-            // causticsOffset
-            causticsMaterial.uniforms.causticsOffset.value = new Vector2(
-                player.x / causticsGeometry.parameters.width,
-                -player.y / causticsGeometry.parameters.height
-            );
+            causticsMaterial.uniforms.causticsOffset.value.x =
+                player.x / causticsGeometry.parameters.width;
+            causticsMaterial.uniforms.causticsOffset.value.y =
+                -player.y / causticsGeometry.parameters.height;
         }
     });
 
