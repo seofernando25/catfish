@@ -1,0 +1,16 @@
+{
+    "name": "@catfish/server",
+    "module": "src/main.ts",
+    "type": "module",
+    "scripts": {
+        "dev": "bun run --hot src/main.ts"
+    },
+    "dependencies": {
+        "@catfish/common": "workspace:common",
+        "@preact/signals": "^2.0.0",
+        "canvaskit-wasm": "^0.39.1",
+        "pngjs": "^7.0.0",
+        "rxjs": "^7.8.1",
+        "socket.io": "^4.8.1"
+    }
+}

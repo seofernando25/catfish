@@ -1,0 +1,7 @@
+{
+    "name": "@catfish/assets",
+    "type": "module",
+    "exports": {
+        "./*": "./*"
+    }
+}

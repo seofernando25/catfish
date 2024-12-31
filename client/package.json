@@ -1,0 +1,29 @@
+{
+    "name": "@catfish/client",
+    "module": "src/main.ts",
+    "type": "module",
+    "scripts": {
+        "dev": "vite"
+    },
+    "dependencies": {
+        "@catfish/common": "workspace:common",
+        "@catfish/assets": "workspace:assets",
+        "@preact/preset-vite": "^2.9.3",
+        "@preact/signals": "^2.0.0",
+        "@tweakpane/core": "^2.0.5",
+        "@types/howler": "^2.2.12",
+        "canvaskit-wasm": "^0.39.1",
+        "howler": "^2.2.4",
+        "htm": "^3.1.1",
+        "@types/pngjs": "^6.0.5",
+        "pngjs": "^7.0.0",
+        "rxjs": "^7.8.1",
+        "sam-js": "^0.3.1",
+        "socket.io": "^4.8.1",
+        "socket.io-client": "^4.8.1",
+        "three": "^0.171.0",
+        "three-subdivide": "^1.1.5",
+        "tinykeys": "^3.0.0",
+        "tweakpane": "^4.0.5"
+    }
+}

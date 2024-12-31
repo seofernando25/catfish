@@ -1,0 +1,9 @@
+{
+    "name": "@catfish/pack-a-sprite",
+    "module": "src/main.ts",
+    "type": "module",
+    "dependencies": {
+        "@types/pngjs": "^6.0.5",
+        "pngjs": "^7.0.0"
+    }
+}
