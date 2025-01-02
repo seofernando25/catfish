@@ -13,7 +13,7 @@ export function fract(x: number): number {
     return x - Math.floor(x);
 }
 
-export function hash1([x, y]: [number, number]): number {
+export function hash1(x: number, y: number): number {
     // Generate a pseudo-random number from 'p'.
     return fract(sin(x * 0.129898 + y * 0.78233) * 43758.5453);
 }

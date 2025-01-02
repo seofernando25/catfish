@@ -65,7 +65,7 @@ const sampleMemo = new Map<
 >();
 
 export function sample(x: number, y: number) {
-    const k = hash1([x, y]);
+    const k = hash1(x, y);
     if (sampleMemo.has(k)) {
         return sampleMemo.get(k)!;
     }

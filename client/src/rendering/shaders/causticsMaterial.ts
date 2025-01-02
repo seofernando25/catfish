@@ -7,6 +7,7 @@ import {
     UniformsLib,
     AdditiveBlending,
     NormalBlending,
+    MultiplyBlending,
 } from "three";
 
 export const causticsMaterial = new ShaderMaterial({
@@ -136,10 +137,9 @@ export const causticsMaterial = new ShaderMaterial({
             gl_FragColor = vec4(finalColor, opacity);
         }
     `,
-    blending: NormalBlending,
+    blending: MultiplyBlending,
     transparent: true,
     depthWrite: false,
-    depthTest: true,
 });
 
 effect(() => {

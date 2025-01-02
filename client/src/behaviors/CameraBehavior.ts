@@ -1,7 +1,7 @@
 import { EntityBehavior } from "@catfish/common/behaviors/PlayerBehavior";
 import { inject } from "@catfish/common/di/index";
 import { type PlayerInfo, PlayerInfoSymbol } from "@catfish/common/player";
-import { sampleContinentalness } from "@catfish/common/procedural/continentalness";
+// import { sampleContinentalness } from "@catfish/common/procedural/continentalness";
 import { Ticker } from "@catfish/common/Ticker";
 import { signal, effect } from "@preact/signals";
 import { Camera } from "three";
@@ -60,10 +60,10 @@ export class CameraBehavior extends EntityBehavior {
                 maxBound
             );
 
-            this.targetCameraYOffset =
-                sampleContinentalness(this.playerInfo.x, this.playerInfo.y) *
-                    50 -
-                25;
+            // this.targetCameraYOffset =
+            //     sampleContinentalness(this.playerInfo.x, this.playerInfo.y) *
+            //         50 -
+            //     25;
 
             this.cameraDist +=
                 (this.targetCameraDist - this.cameraDist) *
@@ -122,7 +122,7 @@ export class CameraBehavior extends EntityBehavior {
 
             camera.lookAt(
                 this.playerInfo.x,
-                this.cameraYOffset,
+                this.cameraYOffset + 2,
                 this.playerInfo.y
             );
             camera.updateProjectionMatrix();

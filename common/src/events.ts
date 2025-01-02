@@ -15,15 +15,15 @@ export type ClientToServerEvents = {
     clientOk: () => void;
     moveRequest: (x: number, y: number) => void;
     ping: (num: number, cb: (num: number) => void) => void;
+    getVertexDisplacements: (
+        chunkX: number,
+        chunkY: number,
+        cb: (heightMap: number[][]) => void
+    ) => void;
 };
 
 export type ServerToClientEvents = {
-    load_chunk: (
-        chunkX: number,
-        chunkY: number,
-        chunkData: number[][],
-        heightMap: number[][]
-    ) => void;
+    load_chunk: (chunkX: number, chunkY: number, chunkData: number[][]) => void;
 
     unload_chunk: (chunkX: number, chunkY: number) => void;
     player_info_announce: (playerInfo: PlayerInfo) => void;

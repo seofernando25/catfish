@@ -1,12 +1,14 @@
 import { effect } from "@preact/signals";
 import {
+    ArrowHelper,
     Mesh,
     MeshBasicMaterial,
+    PlaneGeometry,
+    Quaternion,
     Scene,
     SphereGeometry,
-    Sprite,
-    SpriteMaterial,
     Vector2,
+    Vector3,
 } from "three";
 import { CameraBehavior } from "../behaviors/CameraBehavior";
 import stats from "../stats";
@@ -16,56 +18,66 @@ import { inject } from "@catfish/common/di/index";
 import { Ticker } from "@catfish/common/Ticker";
 import { EntityBehavior } from "@catfish/common/behaviors/PlayerBehavior";
 import { type PlayerInfo, PlayerInfoSymbol } from "@catfish/common/player";
-import { sampleContinentalness } from "@catfish/common/procedural/continentalness";
 import { GameObject } from "@catfish/common/sim/gameObject";
+import { TileMapManager, TileMapManagerSymbol } from "../tilemap";
+import { CHUNK_SIZE } from "@catfish/common/constants";
 
 export class PlayerSpriteBehavior extends EntityBehavior {
     playerInfo = inject<PlayerInfo>(PlayerInfoSymbol);
-    charL = new SpriteMaterial({
+    charL = new MeshBasicMaterial({
         map: getSubTextureFromAtlas("astrocatL"),
         alphaTest: 0.5,
+        side: 2,
         transparent: true,
     });
 
-    charR = new SpriteMaterial({
+    charR = new MeshBasicMaterial({
         map: getSubTextureFromAtlas("astrocatR"),
         alphaTest: 0.5,
+        side: 2,
         transparent: true,
     });
 
-    charF = new SpriteMaterial({
+    charF = new MeshBasicMaterial({
         map: getSubTextureFromAtlas("astrocatF"),
         alphaTest: 0.5,
+        side: 2,
         transparent: true,
     });
 
-    charB = new SpriteMaterial({
+    charB = new MeshBasicMaterial({
         map: getSubTextureFromAtlas("astrocatB"),
         alphaTest: 0.5,
         transparent: true,
+        side: 2,
     });
 
-    sprite = new Sprite(this.charF);
+    private imageAspect =
+        spritesheetData.frames.astrocatB.frame.w /
+        spritesheetData.frames.astrocatB.frame.h;
+
+    playerMesh = new Mesh(
+        new PlaneGeometry(this.imageAspect, 1),
+
+        this.charF
+    );
 
     go = inject(GameObject);
     scene = inject(Scene);
     ticker = inject(Ticker);
     camBehavior = inject(CameraBehavior);
 
+    tileMapMan = inject<TileMapManager>(TileMapManagerSymbol);
+
     constructor() {
         super();
-        this.scene.add(this.sprite);
-        this.sprite.center.set(0.5, 1.0);
+        this.scene.add(this.playerMesh);
+        this.playerMesh.geometry.center();
 
         let lastX = 0;
         let lastY = 0;
         let lastCameraAngle = 0;
         let lastDir = 0;
-
-        // set sprite aspect ratio to be of image
-        const imageAspect =
-            spritesheetData.frames.astrocatB.frame.w /
-            spritesheetData.frames.astrocatB.frame.h;
 
         const sphere = new Mesh(
             new SphereGeometry(0.25, 32, 32),
@@ -117,7 +129,6 @@ export class PlayerSpriteBehavior extends EntityBehavior {
             let dx = px - lastX;
             let dy = py - lastY;
 
-            // Normalize
             let len = Math.sqrt(dx * dx + dy * dy);
             dx /= len || 1;
             dy /= len || 1;
@@ -144,21 +155,18 @@ export class PlayerSpriteBehavior extends EntityBehavior {
 
                 const direction = getDirection(angleDiff);
 
-                this.sprite.center.set(0.5, 1.0);
                 switch (direction) {
                     case DIRECTIONS.UP:
-                        this.sprite.material = this.charF;
+                        this.playerMesh.material = this.charF;
                         break;
                     case DIRECTIONS.RIGHT:
-                        this.sprite.material = this.charR;
-                        this.sprite.center.set(0.7, 1.0);
+                        this.playerMesh.material = this.charR;
                         break;
                     case DIRECTIONS.LEFT:
-                        this.sprite.material = this.charL;
-                        this.sprite.center.set(0.2, 1.0);
+                        this.playerMesh.material = this.charL;
                         break;
                     case DIRECTIONS.DOWN:
-                        this.sprite.material = this.charB;
+                        this.playerMesh.material = this.charB;
                         break;
 
                     default:
@@ -186,31 +194,108 @@ export class PlayerSpriteBehavior extends EntityBehavior {
             }
 
             transitionPercent = Math.min(1, Math.max(0, transitionPercent));
-            const spriteY = lerp(1, 1 + offset.y, transitionPercent);
+            const meshY = lerp(1, 1 + offset.y, transitionPercent);
             const scaleX = lerp(1, 1 + squish, transitionPercent);
             const scaleY = lerp(1, 1 - squish * 0.5, transitionPercent);
-            const scaleZ = lerp(1, 1 + squish, transitionPercent);
 
-            const floorOffset =
-                sampleContinentalness(this.playerInfo.x, this.playerInfo.y) *
-                    50 -
-                25;
+            const chunkX = Math.floor(this.playerInfo.x / CHUNK_SIZE);
+            const chunkY = Math.floor(this.playerInfo.y / CHUNK_SIZE);
+            const relX = this.playerInfo.x % CHUNK_SIZE;
+            const relY = this.playerInfo.y % CHUNK_SIZE;
+            const relXFloor = Math.floor(relX);
+            const relYFloor = Math.floor(relY);
+            const relNormX = relX - relXFloor;
+            const relNormY = relY - relYFloor;
 
-            this.sprite.scale.set(imageAspect * scaleX, scaleY, scaleZ);
-            this.sprite.position.set(
+            const chunkHeightMap = this.tileMapMan.getHeightMapForChunk(
+                chunkX,
+                chunkY
+            );
+            let floorOffset = 0;
+            let floorNormal = new Vector3(0, 1, 0);
+            if (chunkHeightMap !== undefined) {
+                const tileHeight =
+                    chunkHeightMap[relYFloor * CHUNK_SIZE + relXFloor];
+                if (tileHeight === undefined) {
+                    return;
+                }
+                const tileTlHeight = tileHeight[0];
+                const tileTrHeight = tileHeight[1];
+                const tileBlHeight = tileHeight[2];
+                const tileBrHeight = tileHeight[3];
+
+                const x1 = lerp(tileTlHeight, tileTrHeight, relNormX);
+                const x2 = lerp(tileBlHeight, tileBrHeight, relNormX);
+                const y = lerp(x1, x2, relNormY);
+
+                floorOffset = y;
+
+                const tlVec = new Vector3(0, tileTlHeight, 0);
+                const trVec = new Vector3(1, tileTrHeight, 0);
+                const blVec = new Vector3(0, tileBlHeight, 1);
+                const brVec = new Vector3(1, tileBrHeight, 1);
+
+                // Calculate normals for the two triangles that form the tile
+                const normal1 = new Vector3()
+                    .crossVectors(
+                        new Vector3().subVectors(trVec, tlVec), // Edge from top-left to top-right
+                        new Vector3().subVectors(blVec, tlVec) // Edge from top-left to bottom-left
+                    )
+                    .normalize();
+
+                const normal2 = new Vector3()
+                    .crossVectors(
+                        new Vector3().subVectors(brVec, trVec), // Edge from top-right to bottom-right
+                        new Vector3().subVectors(blVec, trVec) // Edge from top-right to bottom-left
+                    )
+                    .normalize();
+
+                // Average the two normals
+                floorNormal = new Vector3()
+                    .addVectors(normal1, normal2)
+                    .normalize()
+                    .negate();
+            } else {
+                floorOffset = 0;
+            }
+
+            this.playerMesh.scale.set(scaleX, scaleY, 1);
+            this.playerMesh.position.set(
                 this.playerInfo.x,
-                spriteY + floorOffset,
+                meshY + floorOffset - 0.5,
                 this.playerInfo.y
             );
+
+            // Step 1: Align the quad to the terrain normal
+            const up = new Vector3(0, 1, 0); // World up vector
+            const quaternion = new Quaternion(); // To hold the rotation
+
+            quaternion.setFromUnitVectors(up, floorNormal); // Align the 'up' vector to the floorNormal
+
+            // Apply the rotation to the mesh
+            this.playerMesh.quaternion.copy(quaternion);
+
+            // Step 2: Face the camera
+            const camAngle = this.camBehavior?.cameraAngle ?? 0; // Camera angle in the world
+            this.playerMesh.rotateOnWorldAxis(floorNormal, camAngle);
+
+            if (this.ticker.currentTick.value % 60 === 0) {
+                const arrowHelper = new ArrowHelper(
+                    floorNormal,
+                    this.playerMesh.position,
+                    1,
+                    0x00ff00
+                );
+                this.scene.add(arrowHelper);
+                console.log("Normal:", floorNormal);
+            }
 
             stats.px = this.playerInfo.x ?? -1;
             stats.py = this.playerInfo.y ?? -1;
         });
-
-        // Bobbing
     }
 
     dispose(): void {
-        this.scene.remove(this.sprite);
+        this.scene.remove(this.playerMesh);
     }
 }

@@ -10,7 +10,6 @@ import {
 import { getTileSpriteName } from "@catfish/common/chunk/util";
 import { getUVOffsets } from "@catfish/common/rendering/atlas";
 import { CHUNK_SIZE } from "@catfish/common/constants";
-import { sampleContinentalness } from "@catfish/common/procedural/continentalness";
 
 import {
     computeUniqueGridVertexNormals,
@@ -19,8 +18,9 @@ import {
     modifyTileUV,
 } from "./chunkGeometry";
 import { spriteSheetTexture } from "./rendering/textures";
+import { inject } from "@catfish/common/di/index";
 
-export const TERRAIN_HEIGHT_SCALE = 50;
+export const TERRAIN_HEIGHT_SCALE = 2;
 // returns a threejs texture from black to white in n tones
 const nToneGradientTexture = (n: number) => {
     // Create w x h (n x 1) texture
@@ -45,7 +45,7 @@ const nToneGradientTexture = (n: number) => {
     return texture;
 };
 
-const fiveTone = nToneGradientTexture(15);
+const fiveTone = nToneGradientTexture(8);
 
 export const TileMapManagerSymbol = Symbol("TileMapManager");
 
@@ -56,12 +56,18 @@ const solidColorMaterial = new MeshToonMaterial({
 });
 
 export class TileMapManager {
+    vertexDisplacementsMap = new Map<string, number[][]>();
     tileMapInfo = new Map<string, number[][]>();
     tileMaps = new Map<string, Mesh>();
     loadedCount = 0;
-    chunkPlaneGeometry = createUniqueGridGeometry(CHUNK_SIZE, CHUNK_SIZE);
+    chunkPlaneGeometry = createUniqueGridGeometry(
+        CHUNK_SIZE,
+        CHUNK_SIZE
+    ).translate(CHUNK_SIZE / 2, 0, CHUNK_SIZE / 2);
 
-    constructor(public scene: Scene) {}
+    scene = inject(Scene);
+
+    constructor() {}
 
     getChunk(x: number, y: number) {
         const chunkKey = `${x},${y}`;
@@ -81,12 +87,7 @@ export class TileMapManager {
         return chunkData[x][y];
     }
 
-    addChunk(
-        chunkX: number,
-        chunkY: number,
-        chunkData: number[][],
-        heightData: number[][]
-    ) {
+    addChunk(chunkX: number, chunkY: number, chunkData: number[][]) {
         this.loadedCount++;
         const chunkKey = `${chunkX},${chunkY}`;
         if (this.tileMaps.has(chunkKey)) {
@@ -97,8 +98,6 @@ export class TileMapManager {
         const OFFSET_Y = chunkY * CHUNK_SIZE;
         const dim = chunkData.length;
         const planeGeometry = this.chunkPlaneGeometry.clone();
-
-        this.updateChunkHeight(planeGeometry, chunkX, chunkY, heightData);
 
         for (let x = 0; x < dim; x++) {
             for (let y = 0; y < dim; y++) {
@@ -114,106 +113,40 @@ export class TileMapManager {
 
         const chunkMesh = new Mesh(planeGeometry, solidColorMaterial);
 
-        chunkMesh.position.set(
-            OFFSET_X + CHUNK_SIZE / 2,
-            0,
-            OFFSET_Y + CHUNK_SIZE / 2
-        );
+        chunkMesh.position.set(OFFSET_X, 0, OFFSET_Y);
 
         this.tileMaps.set(chunkKey, chunkMesh);
         this.tileMapInfo.set(chunkKey, chunkData);
         this.scene.add(chunkMesh);
     }
 
-    private readonly paddedDim = CHUNK_SIZE + 2;
-    private paddedHeightData = new Float64Array(
-        this.paddedDim * this.paddedDim
-    );
-    async updateChunkHeight(
-        geo: BufferGeometry,
-        chunkX: number,
-        chunkY: number,
-        heightData: number[][]
-    ) {
-        const dim = CHUNK_SIZE;
+    async updateChunkHeight(geo: BufferGeometry, heightData: number[][]) {
+        // Iterate over vertices and set their heights
 
-        const OFFSET_X = chunkX * CHUNK_SIZE;
-        const OFFSET_Y = chunkY * CHUNK_SIZE;
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+            for (let y = 0; y < CHUNK_SIZE; y++) {
+                const displacementData = heightData[y * CHUNK_SIZE + x];
+                const tl = displacementData[0];
+                const tr = displacementData[1];
+                const bl = displacementData[2];
+                const br = displacementData[3];
 
-        const getIndex = (x: number, y: number) => x * this.paddedDim + y;
-
-        this.paddedHeightData.fill(0);
-        for (let x = 0; x < this.paddedDim; x++) {
-            for (let y = 0; y < this.paddedDim; y++) {
-                const globalX = x - 1 + OFFSET_X;
-                const globalY = y - 1 + OFFSET_Y;
-
-                if (x > 0 && x <= dim && y > 0 && y <= dim) {
-                    this.paddedHeightData[getIndex(x, y)] =
-                        heightData[x - 1][y - 1];
-                } else {
-                    this.paddedHeightData[getIndex(x, y)] =
-                        sampleContinentalness(globalX, globalY);
-                }
+                modifyTileHeight(geo, x, y, tl, tr, bl, br, CHUNK_SIZE);
             }
         }
-        // Iterate over actual chunk size
-        for (let x = 1; x <= dim; x++) {
-            for (let y = 1; y <= dim; y++) {
-                // Precomputed heights using 1D indexing
-                const tileHeight = this.paddedHeightData[getIndex(x, y)];
-                const leftTileHeight =
-                    this.paddedHeightData[getIndex(x - 1, y)];
-                const rightTileHeight =
-                    this.paddedHeightData[getIndex(x + 1, y)];
-                const upTileHeight = this.paddedHeightData[getIndex(x, y - 1)];
-                const downTileHeight =
-                    this.paddedHeightData[getIndex(x, y + 1)];
-                const topLeftTileHeight =
-                    this.paddedHeightData[getIndex(x - 1, y - 1)];
-                const topRightTileHeight =
-                    this.paddedHeightData[getIndex(x + 1, y - 1)];
-                const bottomLeftTileHeight =
-                    this.paddedHeightData[getIndex(x - 1, y + 1)];
-                const bottomRightTileHeight =
-                    this.paddedHeightData[getIndex(x + 1, y + 1)];
 
-                const topPlusLeftHeight = tileHeight + leftTileHeight;
-                // Average self and neighbors
-                const tlValue =
-                    (topPlusLeftHeight + upTileHeight + topLeftTileHeight) *
-                    0.25;
-                const trValue =
-                    (tileHeight +
-                        rightTileHeight +
-                        upTileHeight +
-                        topRightTileHeight) *
-                    0.25;
-                const blValue =
-                    (topPlusLeftHeight +
-                        downTileHeight +
-                        bottomLeftTileHeight) *
-                    0.25;
-                const brValue =
-                    (tileHeight +
-                        rightTileHeight +
-                        downTileHeight +
-                        bottomRightTileHeight) *
-                    0.25;
-
-                modifyTileHeight(
-                    geo,
-                    x - 1,
-                    y - 1,
-                    tlValue * TERRAIN_HEIGHT_SCALE - TERRAIN_HEIGHT_SCALE / 2,
-                    trValue * TERRAIN_HEIGHT_SCALE - TERRAIN_HEIGHT_SCALE / 2,
-                    blValue * TERRAIN_HEIGHT_SCALE - TERRAIN_HEIGHT_SCALE / 2,
-                    brValue * TERRAIN_HEIGHT_SCALE - TERRAIN_HEIGHT_SCALE / 2,
-                    dim
-                );
-            }
-        }
+        this.vertexDisplacementsMap.set(
+            geo.uuid,
+            heightData.map((row) => [...row])
+        );
         computeUniqueGridVertexNormals(geo);
+    }
+
+    getHeightMapForChunk(chunkX: number, chunkY: number) {
+        const chunkKey = `${chunkX},${chunkY}`;
+        const mesh = this.tileMaps.get(chunkKey);
+        const geoId = mesh?.geometry?.uuid;
+        return this.vertexDisplacementsMap.get(geoId) as number[][] | undefined;
     }
 
     removeChunk(chunkX: number, chunkY: number) {

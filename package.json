@@ -6,7 +6,7 @@
     "scripts": {
         "client": "cd client && bun run dev",
         "server": "cd server && bun run dev",
-        "atlas": "bun run ./tools/pack-a-sprite/index.ts",
+        "atlas": "bun run ./tools/pack-a-sprite/src/main.ts",
         "build": "vite build",
         "preview": "vite preview",
         "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.node.json"

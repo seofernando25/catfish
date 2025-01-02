@@ -4,7 +4,6 @@ import { CHUNK_SIZE } from "@catfish/common/constants";
 export class Chunk {
     data: Uint8Array;
     heightData: Float32Array;
-    // csvMemo: string | undefined = undefined;
 
     constructor(
         o:
@@ -24,7 +23,9 @@ export class Chunk {
         }
 
         if (o?.heightData === undefined) {
-            this.heightData = new Float32Array(CHUNK_SIZE * CHUNK_SIZE);
+            this.heightData = new Float32Array(
+                (CHUNK_SIZE + 1) * (CHUNK_SIZE + 1)
+            );
             this.heightData.fill(0);
         } else {
             this.heightData = o?.heightData;
@@ -73,10 +74,14 @@ export class Chunk {
     }
 
     toHeight2DArray(): number[][] {
-        const rows = new Array(CHUNK_SIZE);
-        for (let i = 0; i < CHUNK_SIZE; i++) {
-            const row = new Array(CHUNK_SIZE);
-            for (let j = 0, k = i; j < CHUNK_SIZE; j++, k += CHUNK_SIZE) {
+        const rows = new Array(CHUNK_SIZE + 1);
+        for (let i = 0; i < CHUNK_SIZE + 1; i++) {
+            const row = new Array(CHUNK_SIZE + 1);
+            for (
+                let j = 0, k = i;
+                j < CHUNK_SIZE + 1;
+                j++, k += CHUNK_SIZE + 1
+            ) {
                 row[j] = this.heightData[k];
             }
             rows[i] = row;

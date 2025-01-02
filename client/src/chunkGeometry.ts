@@ -150,6 +150,8 @@ export function computeUniqueGridVertexNormals(geometry: BufferGeometry) {
     }
 
     geometry.setAttribute("normal", normals);
+
+    geometry.attributes["normal"].needsUpdate = true;
 }
 
 /**
@@ -218,16 +220,15 @@ export function modifyTileHeight(
 
     // Vertex 1: Bottom-Left (bl)
     positionArray[(vertexOffset + 1) * 3 + 1] = bl;
-
+    // Vertex 4: Bottom-Left (bl) - Duplicate for the second triangle
+    positionArray[(vertexOffset + 4) * 3 + 1] = bl;
     // Vertex 2: Top-Right (tr)
     positionArray[(vertexOffset + 2) * 3 + 1] = tr;
 
     // Vertex 3: Top-Right (tr) - Duplicate for the second triangle
     positionArray[(vertexOffset + 3) * 3 + 1] = tr;
-
-    // Vertex 4: Bottom-Left (bl) - Duplicate for the second triangle
-    positionArray[(vertexOffset + 4) * 3 + 1] = bl;
-
     // Vertex 5: Bottom-Right (br)
     positionArray[(vertexOffset + 5) * 3 + 1] = br;
+
+    geometry.attributes["position"].needsUpdate = true;
 }

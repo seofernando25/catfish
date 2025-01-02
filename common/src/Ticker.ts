@@ -19,13 +19,7 @@ export class Ticker {
     constructor() {
         this.intervalId.value;
 
-        // effect(() => {
-        //     this.tickrate.value;
-        //     if (this.intervalId.peek() !== undefined) {
-        //         clearTimeout(this.intervalId.peek());
-        //     }
         this.scheduleNextTick();
-        // });
     }
 
     scheduleNextTick() {
@@ -36,7 +30,19 @@ export class Ticker {
         );
         const nextTickIn =
             (expectedTicks + 1) * (1000 / this.tickrate.value) - elapsed;
+
         this.intervalId.value = setTimeout(() => {
+            // Calculate how many ticks we're behind
+            const ticksBehind = expectedTicks - this.currentTick.value;
+
+            // If we're processing more than one tick at once, log a warning
+            if (ticksBehind > 10) {
+                console.warn(
+                    `Ticker is running too slow. Processing ${ticksBehind} ticks to catch up.`
+                );
+            }
+
+            // Process all missed ticks
             while (this.currentTick.value < expectedTicks) {
                 let tickerQueueLen = this.tickerQueue.length;
                 for (let i = 0; i < tickerQueueLen; i++) {
@@ -46,12 +52,13 @@ export class Ticker {
 
                 this.currentTick.value++;
             }
+
             this.scheduleNextTick(); // Schedule the next tick dynamically
         }, Math.max(nextTickIn, 0)); // Ensure no negative timeouts
     }
 
     sync(info: TickerInfo) {
-        console.log("Syncing...", info);
+        console.log("Sync:", info);
         this.tickrate.value = info.tickrate;
         this.currentTick.value = info.tick;
         this.startTime.value = info.start_t;

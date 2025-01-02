@@ -6,13 +6,91 @@ self.onmessage = (e: MessageEvent<WorkerTaskData>) => {
     const chunkXOffset = chunkX * chunkSize;
     const chunkYOffset = chunkY * chunkSize;
     const result = new Uint8Array(chunkSize * chunkSize);
-    const heights = new Float32Array(chunkSize * chunkSize);
-    for (let i = 0; i < chunkSize; i++) {
-        for (let j = 0; j < chunkSize; j++) {
-            const sampleResult = sample(chunkXOffset + i, chunkYOffset + j);
+    const heights = new Float32Array((chunkSize + 1) * (chunkSize + 1));
 
-            result[j * chunkSize + i] = sampleResult.value;
-            heights[j * chunkSize + i] = sampleResult.continentalness;
+    let memo = new Map<string, ReturnType<typeof sample>>();
+    const memoSample = (x: number, y: number) => {
+        const k = `${x},${y}`;
+        if (memo.has(k)) {
+            return memo.get(k)!;
+        }
+        const v = sample(x, y);
+        memo.set(k, v);
+        return v;
+    };
+    for (let x = 0; x < chunkSize; x++) {
+        for (let y = 0; y < chunkSize; y++) {
+            const sampleResult = memoSample(chunkXOffset + x, chunkYOffset + y);
+
+            result[y * chunkSize + x] = sampleResult.value;
+
+            const tileHeight = sampleResult.continentalness;
+            let rightTileHeight = memoSample(
+                chunkXOffset + x + 1,
+                chunkYOffset + y
+            ).continentalness;
+            let downTileHeight = memoSample(
+                chunkXOffset + x,
+                chunkYOffset + y + 1
+            ).continentalness;
+            let leftTileHeight = memoSample(
+                chunkXOffset + x - 1,
+                chunkYOffset + y
+            ).continentalness;
+            let upTileHeight = memoSample(
+                chunkXOffset + x,
+                chunkYOffset + y - 1
+            ).continentalness;
+            let topLeftTileHeight = memoSample(
+                chunkXOffset + x - 1,
+                chunkYOffset + y - 1
+            ).continentalness;
+            let topRightTileHeight = memoSample(
+                chunkXOffset + x + 1,
+                chunkYOffset + y - 1
+            ).continentalness;
+            let bottomLeftTileHeight = memoSample(
+                chunkXOffset + x - 1,
+                chunkYOffset + y + 1
+            ).continentalness;
+            let bottomRightTileHeight = memoSample(
+                chunkXOffset + x + 1,
+                chunkYOffset + y + 1
+            ).continentalness;
+
+            // Vertex heights
+            const tlValue =
+                (tileHeight +
+                    leftTileHeight +
+                    upTileHeight +
+                    topLeftTileHeight) *
+                0.25;
+
+            const trValue =
+                (tileHeight +
+                    rightTileHeight +
+                    upTileHeight +
+                    topRightTileHeight) *
+                0.25;
+
+            const blValue =
+                (tileHeight +
+                    leftTileHeight +
+                    downTileHeight +
+                    bottomLeftTileHeight) *
+                0.25;
+
+            const brValue =
+                (tileHeight +
+                    rightTileHeight +
+                    downTileHeight +
+                    bottomRightTileHeight) *
+                0.25;
+
+            heights[y * chunkSize + x] = tlValue;
+            heights[y * chunkSize + x + 1] = trValue;
+            heights[(y + 1) * chunkSize + x] = blValue;
+            heights[(y + 1) * chunkSize + x + 1] = brValue;
         }
     }
 

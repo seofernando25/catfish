@@ -39,9 +39,10 @@ import { addHeapStats, tweakpaneRef } from "./stats";
 import { provide } from "@catfish/common/di/index";
 import { globalTicker, Ticker } from "@catfish/common/Ticker";
 import { ReconsiliationBehavior } from "@catfish/common/behaviors/ReconsiliationBehavior";
-import { sampleContinentalness } from "@catfish/common/procedural/continentalness";
+// import { sampleContinentalness } from "@catfish/common/procedural/continentalness";
 import { WASDMoveBehavior } from "./behaviors/WASDMoveBehavior";
 import { PlayerSpriteBehavior } from "./behaviors/PlayerSpriteBehavior";
+import { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants";
 
 export async function game(scene: Scene) {
     let playerInfos: Map<string, PlayerInfo> = new Map();
@@ -134,15 +135,23 @@ export async function game(scene: Scene) {
     };
 
     const MAX_BATCH_SIZE = 5;
-    const PROCESS_INTERVAL = 50;
+    const PROCESS_INTERVAL = 250;
+    let initialLoadT = -1;
 
     const processChunkQueues = () => {
         // Process some loads
         let loadCount = 0;
         while (loadCount < MAX_BATCH_SIZE && toLoad.length > 0) {
-            const { chunkX, chunkY, chunkData, heightData } = toLoad.shift();
-            tileMan?.addChunk(chunkX, chunkY, chunkData, heightData);
+            const { chunkX, chunkY, chunkData } = toLoad.shift();
+            tileMan.addChunk(chunkX, chunkY, chunkData);
+            const geometry = tileMan.tileMaps.get(
+                `${chunkX},${chunkY}`
+            ).geometry;
             loadCount++;
+
+            socket.emit("getVertexDisplacements", chunkX, chunkY, (data) => {
+                tileMan.updateChunkHeight(geometry, data);
+            });
         }
 
         // Process some unloads
@@ -158,7 +167,6 @@ export async function game(scene: Scene) {
         chunkX: any;
         chunkY: any;
         chunkData: any;
-        heightData: any;
     }[] = [];
     let toUnload: { chunkX: any; chunkY: any }[] = [];
 
@@ -166,14 +174,18 @@ export async function game(scene: Scene) {
         processChunkQueues();
     }, PROCESS_INTERVAL);
 
-    socket.on("load_chunk", (chunkX, chunkY, chunkData, heightData) => {
+    socket.on("load_chunk", (chunkX, chunkY, chunkData) => {
+        if (initialLoadT === -1) {
+            initialLoadT = Date.now();
+        }
+
         const inUnload = toUnload.findIndex(
             (c) => c.chunkX === chunkX && c.chunkY === chunkY
         );
         if (inUnload !== -1) {
             toUnload.splice(inUnload, 1);
         }
-        toLoad.push({ chunkX, chunkY, chunkData, heightData });
+        toLoad.push({ chunkX, chunkY, chunkData });
     });
 
     socket.on("unload_chunk", (chunkX, chunkY) => {
@@ -201,7 +213,12 @@ export async function game(scene: Scene) {
 
     socket.emit("clientOk");
 
-    let tileMan: TileMapManager = new TileMapManager(scene);
+    provide({
+        provide: Scene,
+        useValue: scene,
+    });
+
+    let tileMan: TileMapManager = new TileMapManager();
 
     provide({
         provide: TileMapManagerSymbol,
@@ -210,11 +227,31 @@ export async function game(scene: Scene) {
 
     const causticsGeometry = new PlaneGeometry(1000, 1000, 1, 1);
     const causticsMesh = new Mesh(causticsGeometry, causticsMaterial);
-    causticsMesh.position.y = 0.1;
     causticsMesh.rotation.x = -Math.PI / 2;
     causticsMaterial.uniforms["opacity"].value = 0.9;
 
     scene.add(causticsMesh);
+
+    const debugUV = new Mesh(
+        new PlaneGeometry(
+            CHUNK_SIZE * WORLD_ZONE_DIM,
+            CHUNK_SIZE * WORLD_ZONE_DIM,
+            1,
+            1
+        ),
+        new MeshBasicMaterial({
+            map: getSubTextureFromAtlas("uv8"),
+            transparent: true,
+            depthWrite: false,
+            depthTest: false,
+        })
+    );
+    debugUV.material.opacity = 0.1;
+    debugUV.position.y = -10;
+    debugUV.rotation.x = -Math.PI / 2;
+    debugUV.position.x = (CHUNK_SIZE * WORLD_ZONE_DIM) / 2;
+    debugUV.position.z = (CHUNK_SIZE * WORLD_ZONE_DIM) / 2;
+    // scene.add(debugUV);
 
     // add a skybox
     const skybox = new SphereGeometry(900, 32, 32);
@@ -225,7 +262,7 @@ export async function game(scene: Scene) {
     const skyboxMesh = new Mesh(skybox, skyboxMat);
     scene.add(skyboxMesh);
 
-    const light = new DirectionalLight(0xffffff, 1);
+    const light = new DirectionalLight(0xffffff, 2);
     light.castShadow = true; // default false
     const a = Math.PI / 2 + 0.5;
     // Tweakpane color
@@ -308,11 +345,11 @@ export async function game(scene: Scene) {
         transform.x = Math.random() * 100;
         transform.z = Math.random() * 100;
 
-        transform.y =
-            sampleContinentalness(transform.x, transform.z) *
-                TERRAIN_HEIGHT_SCALE -
-            TERRAIN_HEIGHT_SCALE / 2 +
-            texScale / 2;
+        // transform.y =
+        //     sampleContinentalness(transform.x, transform.z) *
+        //         TERRAIN_HEIGHT_SCALE -
+        //     TERRAIN_HEIGHT_SCALE / 2 +
+        //     texScale / 2;
 
         const mat = new Matrix4();
         mat.setPosition(transform);

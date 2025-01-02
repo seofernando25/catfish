@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { packSprites } from "./packer";
 
-const ASSETS_DIR = path.join(import.meta.dir, "../../src/assets");
+const ASSETS_DIR = path.join(import.meta.dir, "../../../assets");
 const pngFilePaths: Set<string> = new Set();
 
 async function initializePngFilePaths(directory: string) {

@@ -97,6 +97,7 @@ export class WASDMoveBehavior extends EntityBehavior {
             // endregion
 
             const isCollision = (x, y) => {
+                return false;
                 const offsets = [
                     [PLAYER_RADIUS, 0],
                     [-PLAYER_RADIUS, 0],
