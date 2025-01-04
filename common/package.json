@@ -2,7 +2,7 @@
     "name": "@catfish/common",
     "type": "module",
     "exports": {
-        "./*": "./src/*.ts"
+        "./*": "./src/*"
     },
     "dependencies": {
         "@preact/signals": "^2.0.0",

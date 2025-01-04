@@ -1,10 +1,10 @@
-import type { ServerSocketClient } from "@catfish/common/events";
+import type { ServerClientSocket } from "@catfish/common/events/server.js";
 
 /**
  * Wait for the client to respond with a clientOk event within a timeout
  */
 export const waitClientOk = async (
-    socket: ServerSocketClient,
+    socket: ServerClientSocket,
     timeout: number = 5000
 ): Promise<boolean> => {
     let clientOk = false;

@@ -1,12 +1,11 @@
-import { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants";
-import { expect, describe, it } from "bun:test";
 import wk from "@catfish/assets/wk.png";
+import { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants.ts";
+import { describe, it } from "bun:test";
 import CanvasKitInit from "canvaskit-wasm";
 
 const CanvasKit = await CanvasKitInit();
 const wkBytes = await Bun.file(wk).arrayBuffer();
 const wkImage = CanvasKit.MakeImageFromEncoded(wkBytes);
-console.log(wkImage.width(), wkImage.height());
 
 describe("World gen", () => {
     it("should generate a world", () => {
@@ -17,6 +16,10 @@ describe("World gen", () => {
         // set world to be an array of arrays initialized to 0
         for (let i = 0; i < world.length; i++) {
             world[i] = new Array(CHUNK_SIZE * CHUNK_SIZE).fill(0);
+        }
+
+        if (!wkImage) {
+            return;
         }
 
         const start = performance.now();
@@ -48,7 +51,7 @@ describe("World gen", () => {
                             colorType: CanvasKit.ColorType.RGBA_8888,
                             alphaType: CanvasKit.AlphaType.Unpremul,
                             colorSpace: CanvasKit.ColorSpace.SRGB,
-                        });
+                        }) || [0, 0, 0, 0];
                         const grayscale =
                             (pixelData[0] * 1) / 3 +
                             (pixelData[1] * 1) / 3 +

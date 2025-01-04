@@ -20,5 +20,8 @@
         "common",
         "assets",
         "tools/*"
-    ]
+    ],
+    "dependencies": {
+        "valibot": "^1.0.0-beta.9"
+    }
 }

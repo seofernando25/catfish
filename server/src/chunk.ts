@@ -1,5 +1,5 @@
+import { CHUNK_SIZE } from "@catfish/common/constants.ts";
 import { ChunkWorkerManager } from "./chunk/ChunkWorkerManager";
-import { CHUNK_SIZE } from "@catfish/common/constants";
 
 export class Chunk {
     data: Uint8Array;

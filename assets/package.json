@@ -3,5 +3,8 @@
     "type": "module",
     "exports": {
         "./*": "./*"
+    },
+    "devDependencies": {
+        "@types/bun": "latest"
     }
 }

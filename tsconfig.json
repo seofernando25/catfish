@@ -1,9 +1,8 @@
 {
     "compilerOptions": {
-        "lib": ["ESNext"],
+        "lib": ["ESNext", "DOM"],
         "target": "ESNext",
         "module": "ESNext",
-        "moduleDetection": "force",
         "jsx": "react-jsx",
         "allowJs": true,
         "resolveJsonModule": true,
@@ -12,24 +11,20 @@
         "moduleResolution": "bundler",
         "allowImportingTsExtensions": true,
         "verbatimModuleSyntax": true,
+        "isolatedModules": true,
+        "moduleDetection": "force",
         "noEmit": true,
 
-        // Best practices
-        // "strict": true,
+        "strict": true,
         "skipLibCheck": true,
         "noFallthroughCasesInSwitch": true,
 
-        // Some stricter flags
-        "noUnusedLocals": true,
-        "noUnusedParameters": true,
-        "noPropertyAccessFromIndexSignature": true,
         // Bun types
         "types": ["bun"],
 
         "useDefineForClassFields": true,
         "experimentalDecorators": true,
 
-        "checkJs": true,
-        "isolatedModules": true
+        "checkJs": true
     }
 }

@@ -3,13 +3,13 @@ import type { ServerSocketInstance } from "./main";
 import { PLAYER_RADIUS, PLAYER_SPEED } from "../../common/src/player";
 import { Ticker } from "../../common/src/Ticker";
 import { ChunkManager } from "./chunk";
-import {
-    CHUNK_RANGE,
-    CHUNK_SIZE,
-    WORLD_ZONE_DIM,
-} from "@catfish/common/constants";
-import type { ServerSocketClient } from "@catfish/common/events";
+
 import { genWorldHeightMapsFromImage } from "./gen";
+import {
+    WORLD_ZONE_DIM,
+    CHUNK_SIZE,
+    CHUNK_RANGE,
+} from "@catfish/common/constants.js";
 
 const heightMaps = await genWorldHeightMapsFromImage();
 console.log("heightmap generated");
@@ -60,7 +60,7 @@ export class WorldMan {
         }
     }
 
-    async handleConnection(socket: ServerSocketClient) {
+    async handleConnection(socket: ServerClientSocket) {
         let clientOk = false;
         console.log("New connection from", socket.id);
 
@@ -528,19 +528,6 @@ export class WorldMan {
         const moveEv = moveEvent();
         socket.data.onTick.push(moveEv.onTick);
         socket.data.dispose.push(getHeightmapEv.dispose);
-
-        let playerPing = 0;
-        socket.on("ping", (num, cb) => {
-            const now = Date.now();
-            const delta = now - num;
-            if (delta < 0) {
-                console.log("Client", socket.id, "sent ping in the future"); // Could it happen in different timezones?
-            } else {
-                playerPing = delta;
-            }
-
-            cb(now);
-        });
 
         // this.addPlayerEvent(uuid, chunkLoadEv);
     }

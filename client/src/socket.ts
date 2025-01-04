@@ -1,10 +1,8 @@
 import { io, Socket } from "socket.io-client";
 
 import stats from "./stats";
-import type {
-    ServerToClientEvents,
-    ClientToServerEvents,
-} from "@catfish/common/events";
+import type { ClientToServerEvents } from "@catfish/common/events/client.js";
+import type { ServerToClientEvents } from "@catfish/common/events/server.js";
 
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(
     document.location.origin,
@@ -21,7 +19,7 @@ socket.on("connect", () => {
             socket.id !== undefined,
             "Socket ID is undefined on connect"
         );
-        stats.Id = socket.id;
+        stats.Id = socket.id ?? "undefined";
     }, 50);
 });
 
@@ -33,17 +31,6 @@ socket.on("connect_error", () => {
     console.error("Connection error");
     stats.ConnState = "Connection Error";
 });
-
-// setInterval(() => {
-//     socket.timeout(250).emit("ping", Date.now(), (err, serverTime: number) => {
-//         if (err) {
-//             stats.Ping = "250+";
-//             return;
-//         }
-//         const deltaMs = Date.now() - serverTime;
-//         stats.Ping = deltaMs.toFixed(0);
-//     });
-// }, 250);
 
 export async function waitUntilConnected() {
     console.log("Waiting for connection");

@@ -1,9 +1,4 @@
-import { GameObject } from "@catfish/common/sim/gameObject";
-import {
-    TERRAIN_HEIGHT_SCALE,
-    TileMapManager,
-    TileMapManagerSymbol,
-} from "./tilemap";
+import { TileMapManager, TileMapManagerSymbol } from "./tilemap";
 
 import { effect } from "@preact/signals";
 import {
@@ -18,7 +13,6 @@ import {
     SphereGeometry,
     Vector3,
 } from "three";
-import { PlayerInfoSymbol, type PlayerInfo } from "@catfish/common/player";
 import { CameraBehavior } from "./behaviors/CameraBehavior";
 import { GameUIBehavior } from "./behaviors/GameUIBehavior";
 
@@ -36,103 +30,74 @@ import {
     type ClientSocket,
 } from "./socket";
 import { addHeapStats, tweakpaneRef } from "./stats";
-import { provide } from "@catfish/common/di/index";
-import { globalTicker, Ticker } from "@catfish/common/Ticker";
-import { ReconsiliationBehavior } from "@catfish/common/behaviors/ReconsiliationBehavior";
 // import { sampleContinentalness } from "@catfish/common/procedural/continentalness";
-import { WASDMoveBehavior } from "./behaviors/WASDMoveBehavior";
 import { PlayerSpriteBehavior } from "./behaviors/PlayerSpriteBehavior";
-import { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants";
+import { WASDMoveBehavior } from "./behaviors/WASDMoveBehavior";
+import type { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants.js";
+import type { provide } from "@catfish/common/di/index.js";
+import type { globalTicker } from "@catfish/common/Ticker.js";
 
 export async function game(scene: Scene) {
-    let playerInfos: Map<string, PlayerInfo> = new Map();
-    let player: GameObject | undefined = undefined;
-    let gameObjects: Map<string, GameObject> = new Map();
+    // const createNetworkedPlayer = (
+    //     playerInfo: PlayerInfo,
+    //     socket: ClientSocket
+    // ) => {
+    //     console.log("Creating networked player", playerInfo.playerId);
+    //     if (gameObjects.has(playerInfo.playerId)) {
+    //         console.log(
+    //             "Tried to create networked player that already exists",
+    //             playerInfo.playerId
+    //         );
+    //         return gameObjects.get(playerInfo.playerId)!;
+    //     }
+    //     console.log("Creating networked player", playerInfo.playerId);
+    //     provide({
+    //         provide: Ticker,
+    //         useValue: globalTicker,
+    //     });
+    //     provide({
+    //         provide: PlayerInfoSymbol,
+    //         useValue: playerInfo,
+    //     });
 
-    // Wait for connected
-    await waitUntilConnected();
+    //     provide({
+    //         provide: Scene,
+    //         useValue: scene,
+    //     });
 
-    addHeapStats();
+    //     provide({
+    //         provide: Camera,
+    //         useValue: camera,
+    //     });
 
-    socket.on("player_info_announce", (playerInfo: PlayerInfo) => {
-        playerInfos.set(playerInfo.playerId, playerInfo);
-        const id = playerInfo.playerId;
-        1;
-        if (gameObjects.has(id)) {
-            // Update player etc?
-            // const player = this.players.get(id);
-            // if (player) {
-            //     player.player.x = playerInfo.x;
-            //     player.player.y = playerInfo.y;
-            //     player.player.username = playerInfo.username;
-            // }
-        } else {
-            createNetworkedPlayer(playerInfo, socket);
-        }
-    });
+    //     provide({
+    //         provide: ClientSocketSymbol,
+    //         useValue: socket,
+    //     });
 
-    console.log("Creating scene");
+    //     const newPlayer = new GameObject();
 
-    const createNetworkedPlayer = (
-        playerInfo: PlayerInfo,
-        socket: ClientSocket
-    ) => {
-        console.log("Creating networked player", playerInfo.playerId);
-        if (gameObjects.has(playerInfo.playerId)) {
-            console.log(
-                "Tried to create networked player that already exists",
-                playerInfo.playerId
-            );
-            return gameObjects.get(playerInfo.playerId)!;
-        }
-        console.log("Creating networked player", playerInfo.playerId);
-        provide({
-            provide: Ticker,
-            useValue: globalTicker,
-        });
-        provide({
-            provide: PlayerInfoSymbol,
-            useValue: playerInfo,
-        });
+    //     provide({
+    //         provide: GameObject,
+    //         useValue: newPlayer,
+    //     });
 
-        provide({
-            provide: Scene,
-            useValue: scene,
-        });
+    //     if (socket.id === playerInfo.playerId) {
+    //         newPlayer.addBehavior(CameraBehavior);
+    //         newPlayer.addBehavior(WASDMoveBehavior);
+    //         newPlayer.addBehavior(GameUIBehavior);
+    //     }
+    //     newPlayer.addBehavior(PlayerSpriteBehavior);
+    //     newPlayer.addBehavior(ReconsiliationBehavior);
 
-        provide({
-            provide: Camera,
-            useValue: camera,
-        });
+    //     gameObjects.set(playerInfo.playerId, newPlayer);
 
-        provide({
-            provide: ClientSocketSymbol,
-            useValue: socket,
-        });
+    //     if (socket.id === playerInfo.playerId) {
+    //         player = newPlayer;
+    //     }
 
-        const newPlayer = new GameObject();
-
-        provide({
-            provide: GameObject,
-            useValue: newPlayer,
-        });
-
-        if (socket.id === playerInfo.playerId) {
-            newPlayer.addBehavior(CameraBehavior);
-            newPlayer.addBehavior(WASDMoveBehavior);
-            newPlayer.addBehavior(GameUIBehavior);
-        }
-        newPlayer.addBehavior(PlayerSpriteBehavior);
-        newPlayer.addBehavior(ReconsiliationBehavior);
-
-        gameObjects.set(playerInfo.playerId, newPlayer);
-
-        if (socket.id === playerInfo.playerId) {
-            player = newPlayer;
-        }
-
-        return newPlayer;
-    };
+    //     return newPlayer;
+    // };
 
     const MAX_BATCH_SIZE = 5;
     const PROCESS_INTERVAL = 250;
@@ -146,12 +111,19 @@ export async function game(scene: Scene) {
             tileMan.addChunk(chunkX, chunkY, chunkData);
             const geometry = tileMan.tileMaps.get(
                 `${chunkX},${chunkY}`
-            ).geometry;
+            )?.geometry;
             loadCount++;
 
-            socket.emit("getVertexDisplacements", chunkX, chunkY, (data) => {
-                tileMan.updateChunkHeight(geometry, data);
-            });
+            if (geometry) {
+                socket.emit(
+                    "getVertexDisplacements",
+                    chunkX,
+                    chunkY,
+                    (data) => {
+                        tileMan.updateChunkHeight(geometry, data);
+                    }
+                );
+            }
         }
 
         // Process some unloads

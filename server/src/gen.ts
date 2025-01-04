@@ -1,12 +1,16 @@
-import { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants";
 import wk from "@catfish/assets/wk.png";
 import CanvasKitInit from "canvaskit-wasm";
+import { WORLD_ZONE_DIM, CHUNK_SIZE } from "@catfish/common/constants.ts";
 
 const CanvasKit = await CanvasKitInit();
 
 export const genWorldHeightMapsFromImage = async () => {
     const wkBytes = await Bun.file(wk).arrayBuffer();
     const wkImage = CanvasKit.MakeImageFromEncoded(wkBytes);
+    if (!wkImage) {
+        return;
+    }
+
     const world: number[][] = new Array(WORLD_ZONE_DIM * WORLD_ZONE_DIM);
     // set world to be an array of arrays initialized to 0
     for (let i = 0; i < world.length; i++) {
@@ -39,7 +43,7 @@ export const genWorldHeightMapsFromImage = async () => {
                         colorType: CanvasKit.ColorType.RGBA_8888,
                         alphaType: CanvasKit.AlphaType.Unpremul,
                         colorSpace: CanvasKit.ColorSpace.SRGB,
-                    });
+                    }) || [0, 0, 0, 0];
                     const grayscale =
                         (pixelData[0] * 1) / 3 +
                         (pixelData[1] * 1) / 3 +

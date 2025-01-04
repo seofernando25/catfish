@@ -6,6 +6,7 @@ import {
 } from "three";
 import skyPath from "@catfish/assets/skybox.png";
 import spritesheetPath from "@catfish/assets/spritesheet.png";
+
 import atlasData from "@catfish/assets/spritesheet.json";
 
 const textureLoader = new TextureLoader();
@@ -55,6 +56,7 @@ export const spriteUniformGeometry = Object.entries(atlasData.frames).reduce(
         uv[7] = v1; // Top-right
         plane.attributes["uv"].needsUpdate = true;
 
+        // @ts-expect-error - index signature from object entries
         acc[key] = plane;
         return acc;
     },

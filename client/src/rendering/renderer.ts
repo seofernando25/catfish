@@ -26,16 +26,16 @@ globalScene.fog = new FogExp2(0xcccccc, 0.002);
 
 composer.addPass(new RenderPass(globalScene, camera));
 
-const bokehPass = new BokehPass(globalScene, camera, {
-    focus: globalCameraDist.value,
-    aperture: 0.0001,
-    maxblur: 0.005,
-});
+// const bokehPass = new BokehPass(globalScene, camera, {
+//     focus: globalCameraDist.value,
+//     aperture: 0.0001,
+//     maxblur: 0.005,
+// });
 
-effect(() => {
-    bokehPass.uniforms["focus"].value = globalCameraDist.value;
-});
-composer.addPass(bokehPass);
+// effect(() => {
+//     bokehPass.uniforms["focus"].value = globalCameraDist.value;
+// });
+// composer.addPass(bokehPass);
 
 const outputPass = new OutputPass();
 
