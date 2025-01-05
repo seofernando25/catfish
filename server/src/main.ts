@@ -18,9 +18,10 @@ import type {
     ServerToClientEvents,
     SocketData,
 } from "@catfish/common/events/server.ts";
-import { Ticker } from "@catfish/common/Ticker.ts";
+import { globalTicker, Ticker } from "@catfish/common/Ticker.ts";
 import { effect } from "@preact/signals";
 import { is } from "valibot";
+import { PLAYER_SPEED } from "@catfish/common/player.ts";
 
 export function baseServer() {
     const io = new Server<
@@ -89,11 +90,15 @@ export function createWorld() {
     // region Systems
     const movement_system = ecs.addSystem(movement_query, (entities) => {
         for (let entity of entities) {
-            const dirX = entity.desireDir.x;
-            const dirY = entity.desireDir.y;
-
-            entity.x += dirX;
-            entity.z += dirY;
+            let dirX = entity.desireDir.x;
+            let dirY = entity.desireDir.y;
+            const norm = Math.sqrt(dirX * dirX + dirY * dirY);
+            if (norm !== 0) {
+                dirX /= norm;
+                dirY /= norm;
+            }
+            entity.x += dirX * globalTicker.deltaTime.value * PLAYER_SPEED;
+            entity.z += dirY * globalTicker.deltaTime.value * PLAYER_SPEED;
             if (dirX !== 0 || dirY !== 0) {
                 ecs.markAsMutated(entity);
             }
@@ -129,7 +134,6 @@ export function createServerWorld(server: ReturnType<typeof baseServer>) {
             const entity = ecs.getEntity(entity_id);
             for (let [sock, id] of socket_entity_map) {
                 if (loggedIn.has(id)) {
-                    console.log("Telling", sock.id, "to update entity", entity);
                     sock.emit("update_entity", entity);
                 }
             }
@@ -160,28 +164,44 @@ export function createServerWorld(server: ReturnType<typeof baseServer>) {
             const playerEntityCleanup = ecs.addEntity(player);
             onDisconnect.push(playerEntityCleanup);
 
-            // Initial add of all entities
-            for (let entity of ecs.iter()) {
-                sock.emit("add_entity", entity);
-            }
+            let requestedSpawn = false;
+            sock.on("spawn", (cb) => {
+                console.log("### Spawn request");
+                if (requestedSpawn) {
+                    console.error("User", username, "requested spawn twice");
+                    return cb();
+                }
 
-            // region Handle ECS sync
-            const lifecycleCleanup = ecs.onWorldLifecycle((entity) => {
-                console.log("### Adding entity", entity);
-                sock.emit("add_entity", entity);
+                requestedSpawn = true;
 
-                return () => {
-                    console.log(
-                        "Telling",
-                        sock.id,
-                        "to remove entity",
-                        entity.id
-                    );
-                    sock.emit("remove_entity", entity.id);
-                };
+                console.log("### Sending all entities");
+                for (let entity of ecs.iter()) {
+                    sock.emit("add_entity", entity);
+                }
+                console.log("### Done sending all entities");
+                setTimeout(() => {
+                    cb();
+                }, 100);
+
+                // region Handle ECS sync
+                const lifecycleCleanup = ecs.onWorldLifecycle((entity) => {
+                    console.log("### Adding entity", entity);
+                    sock.emit("add_entity", entity);
+
+                    return () => {
+                        sock.emit("remove_entity", entity.id);
+                    };
+                });
+                onDisconnect.push(lifecycleCleanup);
+
+                // region Handle Move
+                sock.on("action_move", (dir: { x: number; y: number }) => {
+                    player.desireDir = dir;
+                });
+                // endregion
+
+                // endregion
             });
-            onDisconnect.push(lifecycleCleanup);
-            // endregion
 
             return cb({ success: true, message: "Logged in" });
         });
@@ -192,12 +212,6 @@ export function createServerWorld(server: ReturnType<typeof baseServer>) {
             const serverTime = Date.now();
             last_ping = serverTime;
             cb({ timestamp: serverTime });
-        });
-        // endregion
-
-        // region Handle Move
-        sock.on("action_move", (dir: { x: number; y: number }) => {
-            player.desireDir = dir;
         });
         // endregion
 

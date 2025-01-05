@@ -37,3 +37,8 @@ body {
         background-color: #f9f9f9;
     }
 }
+
+.tp-dfwv {
+    z-index: 9999999999 !important;
+    width: 360px !important;
+}

@@ -1,62 +1,87 @@
-import { effect } from "@preact/signals";
-import { FogExp2, PCFSoftShadowMap, Scene, WebGLRenderer } from "three";
-import { BokehPass } from "three/addons/postprocessing/BokehPass.js";
+import { computed, effect, signal } from "@preact/signals";
 import {
+    BloomEffect,
     EffectComposer,
-    OutputPass,
-    Pass,
+    EffectPass,
     RenderPass,
-} from "three/examples/jsm/Addons.js";
-import { globalCameraDist } from "../behaviors/CameraBehavior";
+    SMAAEffect,
+} from "postprocessing";
+
+import {
+    MeshBasicMaterial,
+    NeutralToneMapping,
+    PCFSoftShadowMap,
+    Scene,
+    Vector2,
+    WebGLRenderer,
+} from "three";
+
 import { tweakpaneRef } from "../stats";
 import { camera } from "./camera";
 import { windowHeight, windowPixelRatio, windowWidth } from "./window";
-import { ShaderMaterial, Vector3, WebGLRenderTarget } from "three";
 
-export const renderer = new WebGLRenderer({});
+export const renderer = new WebGLRenderer({
+    powerPreference: "high-performance",
+    antialias: false,
+});
 renderer.shadowMap.enabled = true;
+renderer.autoClear = false;
 renderer.shadowMap.type = PCFSoftShadowMap;
+renderer.toneMapping = NeutralToneMapping;
 document.body.appendChild(renderer.domElement);
 document.body.style.overflow = "hidden";
 
 export const globalScene = new Scene();
-export const composer = new EffectComposer(renderer);
 
-globalScene.fog = new FogExp2(0xcccccc, 0.002);
+const renderPass = computed(() => new RenderPass(globalScene, camera.value));
 
-composer.addPass(new RenderPass(globalScene, camera));
+const renderExposure = signal(1.0);
 
-// const bokehPass = new BokehPass(globalScene, camera, {
-//     focus: globalCameraDist.value,
-//     aperture: 0.0001,
-//     maxblur: 0.005,
-// });
+effect(() => {
+    renderer.toneMappingExposure = Math.pow(renderExposure.value, 4.0);
+});
 
-// effect(() => {
-//     bokehPass.uniforms["focus"].value = globalCameraDist.value;
-// });
-// composer.addPass(bokehPass);
+// globalScene.fog = new FogExp2(0xcccccc, 0.002);
 
-const outputPass = new OutputPass();
+export const finalComposer = new EffectComposer(renderer);
 
-composer.addPass(outputPass);
+export const smmaEffect = new EffectPass(camera.value, new SMAAEffect());
+
+effect(() => {
+    finalComposer.removePass(renderPass.value);
+
+    finalComposer.addPass(renderPass.value);
+    finalComposer.addPass(smmaEffect);
+});
 
 effect(() => {
     renderer.setPixelRatio(windowPixelRatio.value);
     renderer.setSize(windowWidth.value, windowHeight.value);
-    composer.setSize(windowWidth.value, windowHeight.value);
+    finalComposer.setSize(windowWidth.value, windowHeight.value);
 });
 
 renderer.info.autoReset = false;
 const renderInfo = { rendererInfo: renderer.info.render.calls };
-tweakpaneRef.addBinding(renderInfo, "rendererInfo", {
-    label: "Renderer Info",
-    expanded: false,
-    readonly: true,
-});
-renderer.setAnimationLoop(() => {
-    composer.render();
+
+let lastTime = 0;
+renderer.setAnimationLoop((time) => {
+    const dt = (time - lastTime) / 1000;
+    lastTime = time;
+
+    renderer.clear();
+    finalComposer.render(dt);
     renderInfo.rendererInfo = renderer.info.render.calls;
     tweakpaneRef.refresh();
     renderer.info.reset();
+});
+
+const renderingFolder = tweakpaneRef.addFolder({
+    title: "Rendering",
+    expanded: false,
+});
+
+renderingFolder.addBinding(renderInfo, "rendererInfo", {
+    label: "Draw calls",
+    expanded: false,
+    readonly: true,
 });

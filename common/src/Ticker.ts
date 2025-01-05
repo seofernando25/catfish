@@ -7,7 +7,7 @@ export type TickerInfo = {
 };
 
 export class Ticker {
-    tickrate = signal(30); // ticks per second
+    tickrate = signal(60); // ticks per second
     currentTick = signal(0);
     deltaTime = computed(() => 1 / this.tickrate.value);
     elapsed = computed(() => this.currentTick.value * this.deltaTime.value);

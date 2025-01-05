@@ -1,0 +1,74 @@
+.welcome-box {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    font-family: monospace;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #eee;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    max-width: calc(600px - 2rem);
+    width: 100%;
+    /* text uppercase */
+    text-transform: uppercase;
+
+    hr {
+        margin: 0;
+        border: 0;
+        border-top: 1px solid #ddd;
+        margin-bottom: 1rem;
+    }
+
+    h1 {
+        margin: 0;
+        font-size: 1.65rem;
+        font-weight: 700;
+        color: #222;
+    }
+
+    h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 1rem;
+    }
+
+    p {
+        margin: 0;
+        color: #666;
+        margin-bottom: 1rem;
+    }
+
+    input[type="text"] {
+        border: 1px solid #ddd;
+        border-radius: 0px;
+        font-size: 2rem;
+        font-weight: 700;
+        padding: 0.5rem;
+        color: #eee;
+        margin-bottom: 1rem;
+    }
+
+    input[type="text"]::placeholder {
+        font-size: 2rem;
+        text-transform: uppercase;
+        font-weight: 700;
+    }
+
+    /* join button */
+    button {
+        background: #ccc;
+        color: #333;
+        font-size: 2rem;
+        padding: 0.5rem;
+
+        border: 0;
+    }
+
+    .error-message {
+        color: #ff4319;
+    }
+}

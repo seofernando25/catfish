@@ -91,4 +91,5 @@ export async function packSprites(pngFilePaths: string[], outputDir: string) {
         pngFilePaths,
         path.join(outputDir, "spritesheet.png")
     );
+    console.log("Spritesheet created");
 }

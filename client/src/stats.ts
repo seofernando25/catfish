@@ -2,6 +2,9 @@ import { Pane } from "tweakpane";
 import type { heapStats } from "bun:jsc";
 import { io } from "socket.io-client";
 import { socket } from "./socket";
+import { getDebugFlags, saveDebugFlagsToLocalStorage } from "./debugFlags";
+import { effect } from "@preact/signals";
+import { ping } from "./networkCalls";
 
 export const stats = {
     ConnState: "Disconnected",
@@ -16,37 +19,141 @@ export const stats = {
 
 export const tweakpaneRef = new Pane();
 
-tweakpaneRef.addBinding(stats, "ConnState", {
-    readonly: true,
+const debugFlagsLocal = getDebugFlags();
+effect(() => {
+    tweakpaneRef.hidden = !debugFlagsLocal.showDebugPanel.value;
 });
 
-tweakpaneRef.addBinding(stats, "px", {
-    readonly: true,
+const debugFlagsFolder = tweakpaneRef.addFolder({
+    title: "Debug Flags",
+    expanded: false,
 });
 
-tweakpaneRef.addBinding(stats, "py", {
-    readonly: true,
+for (const [key, value] of Object.entries(debugFlagsLocal)) {
+    const bind = debugFlagsFolder.addBinding(value, "value", {
+        label: key,
+    });
+    bind.on("change", () => {
+        console.log("Saving debug flags to local storage");
+        saveDebugFlagsToLocalStorage();
+    });
+}
+
+export const addSocketFolders = async () => {
+    const socketFolder = tweakpaneRef.addFolder({
+        title: "Socket",
+        expanded: false,
+    });
+
+    let socketStat = {
+        id: "",
+        ping: 0,
+    };
+
+    socketFolder.addBinding(socketStat, "id", {
+        readonly: true,
+    });
+
+    let pingResponse = await ping();
+
+    socketFolder.addBinding(pingResponse, "round_trip_time", {
+        label: "RTT",
+        readonly: true,
+    });
+
+    const advancedSocketFolder = socketFolder.addFolder({
+        title: "Advanced",
+        expanded: false,
+    });
+
+    advancedSocketFolder.addBinding(pingResponse, "round_trip_time", {
+        label: "Round Trip Time",
+        readonly: true,
+        view: "graph",
+        min: 0,
+        max: 200,
+    });
+
+    advancedSocketFolder.addBinding(pingResponse, "client_delay", {
+        label: "Client Delay",
+        readonly: true,
+        view: "graph",
+        min: 0,
+        max: 200,
+    });
+
+    advancedSocketFolder.addBinding(pingResponse, "server_delay", {
+        label: "Server Delay",
+        readonly: true,
+        view: "graph",
+        min: 0,
+        max: 200,
+    });
+
+    socket.on("connect", () => {
+        socketStat.id = socket.id ?? "undefined";
+    });
+
+    while (true) {
+        const newResponse = await ping();
+        pingResponse.client_delay = newResponse.client_delay;
+        pingResponse.round_trip_time = newResponse.round_trip_time;
+        pingResponse.server_delay = newResponse.server_delay;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+};
+
+setTimeout(() => {
+    addSocketFolders();
+}, 100);
+
+const superSecretFolder = tweakpaneRef.addFolder({
+    title: "Super Secret Settings",
+    expanded: false,
 });
 
-tweakpaneRef.addBinding(stats, "Id", {
-    readonly: true,
+// region TV girl mode
+
+const tvGirlModeButton = superSecretFolder.addButton({
+    label: "TV Girl Mode",
+    title: "Toggle",
 });
 
-tweakpaneRef.addBinding(stats, "Status", {
-    readonly: true,
+let iframeAdded = false;
+const iframe = document.createElement("iframe");
+iframe.src =
+    "https://www.youtube.com/embed/MWj7MhupSoM?autoplay=0&loop=1&playlist=MWj7MhupSoM&mute=0";
+iframe.allow = "autoplay; encrypted-media";
+// anchor to bottom left
+iframe.style.position = "absolute";
+iframe.style.bottom = "0";
+iframe.style.left = "0";
+iframe.style.width = "480px";
+iframe.style.height = "360px";
+iframe.style.display = "none";
+
+tvGirlModeButton.on("click", () => {
+    iframe.style.display = iframe.style.display === "none" ? "block" : "none";
+
+    if (!iframeAdded) {
+        document.body.appendChild(iframe);
+        iframeAdded = true;
+    }
 });
 
-tweakpaneRef.addBinding(stats, "Ping", {
-    readonly: true,
-});
+// endregion
 
-tweakpaneRef.addBinding(stats, "CamAngle", {
-    readonly: true,
-});
+// tweakpaneRef.addBinding(stats, "Ping", {
+//     readonly: true,
+// });
 
-tweakpaneRef.addBinding(stats, "PlayerDir", {
-    readonly: true,
-});
+// tweakpaneRef.addBinding(stats, "CamAngle", {
+//     readonly: true,
+// });
+
+// tweakpaneRef.addBinding(stats, "PlayerDir", {
+//     readonly: true,
+// });
 
 // Heap stats
 

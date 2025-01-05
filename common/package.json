@@ -5,8 +5,9 @@
         "./*": "./src/*"
     },
     "dependencies": {
+        "@catfish/assets": "workspace:assets",
         "@preact/signals": "^2.0.0",
         "socket.io": "^4.8.1",
-        "@catfish/assets": "workspace:assets"
+        "valibot": "^1.0.0-beta.10"
     }
 }

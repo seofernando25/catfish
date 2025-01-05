@@ -1,17 +1,11 @@
-import { Ticker } from "@catfish/common/Ticker";
 import { computed, effect, signal, useSignal } from "@preact/signals";
-import htm from "htm";
-import { h } from "htm/preact/index.js";
 import { createRef, render } from "preact";
 import { useEffect } from "preact/hooks";
 import { EntityBehavior } from "../../../common/src/behaviors/PlayerBehavior";
 import { ttsSpeak } from "../tts";
 import { keyboardOrSignal } from "../input/events";
-import { inject } from "@catfish/common/di/index";
-import { GameObject } from "@catfish/common/sim/gameObject";
+import html from "../html";
 // import { inject } from "../../../common/src/di";
-
-const html = htm.bind(h);
 
 const messages = signal([
     { sender: "System", message: "Welcome to the game!" },
@@ -117,11 +111,6 @@ function ChatBox() {
         </div>
     `;
 }
-
-const container = document.createElement("div");
-window.document.body.appendChild(container);
-
-render(html`<${ChatBox} />`, container);
 
 export class GameUIBehavior extends EntityBehavior {
     toggle = keyboardOrSignal([{ key: "i" }, { key: "I" }]);

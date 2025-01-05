@@ -21,6 +21,7 @@ function fishMixin<T extends ReturnType<typeof baseAnimalBlueprint>>(
     obj.sizeDeviation = obj.sizeDeviation ?? v?.sizeDeviation ?? 0.05;
     obj.weightAverage = obj.weightAverage ?? v?.weightAverage ?? 1;
     obj.weightDeviation = obj.weightDeviation ?? v?.weightDeviation ?? 0.2;
+    obj.spriteSrc = obj.spriteSrc ?? "Fallback_Fish";
     return obj;
 }
 

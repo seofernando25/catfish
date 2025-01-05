@@ -1,4 +1,4 @@
-import { globalTicker } from "@catfish/common/Ticker";
+import { globalTicker } from "@catfish/common/Ticker.js";
 import { effect } from "@preact/signals";
 import {
     ShaderMaterial,
@@ -137,7 +137,6 @@ export const causticsMaterial = new ShaderMaterial({
             gl_FragColor = vec4(finalColor, opacity);
         }
     `,
-    blending: MultiplyBlending,
     transparent: true,
     depthWrite: false,
 });

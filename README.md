@@ -21,7 +21,7 @@ bun run server
 
 ```bash
 # Hosting the game on localhost:1234
-bun run dev --host --port 1234
+bun run client --host --port 1234
 ```
 
 ## Screenshots
