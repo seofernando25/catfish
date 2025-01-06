@@ -1,15 +1,16 @@
-import { Server, Socket } from "socket.io";
-
 import { catBlueprint } from "@catfish/common/data/cat.ts";
 import {
-    DesiredDirectionSchema,
     mixinPlayerSocketControlled,
     PlayerControlledSchema,
-    PositionSchema,
 } from "@catfish/common/data/entity.ts";
-import { entityQuery, newECSWorld } from "@catfish/common/ecs.ts";
+import {
+    entityQuery,
+    newECSWorld,
+    type ECSWorld,
+} from "@catfish/common/ecs.ts";
+import { Server } from "socket.io";
 
-import { PrimitiveObjectSchema } from "@catfish/common/data/objectData.ts";
+import { newFishSpot } from "@catfish/common/data/fishing.ts";
 import type { ClientToServerEvents } from "@catfish/common/events/client.ts";
 import type {
     InterServerEvents,
@@ -18,10 +19,17 @@ import type {
     ServerToClientEvents,
     SocketData,
 } from "@catfish/common/events/server.ts";
-import { globalTicker, Ticker } from "@catfish/common/Ticker.ts";
+import { Ticker } from "@catfish/common/Ticker.ts";
 import { effect } from "@preact/signals";
 import { is } from "valibot";
-import { PLAYER_SPEED } from "@catfish/common/player.ts";
+import {
+    emitAddEntityWithRetry,
+    emitRemoveEntityWithRetry,
+    emitUpdateEntityWithRetry,
+    type EmitAddEntityResult,
+} from "./emits";
+import { addChunkDisplacements } from "./system/chunkSystem";
+import { movementSystem } from "./system/movementSystem";
 
 export function baseServer() {
     const io = new Server<
@@ -30,6 +38,8 @@ export function baseServer() {
         InterServerEvents,
         SocketData
     >({
+        // 10MB max buffer size
+        maxHttpBufferSize: 1e8,
         cors: {
             origin: "*",
         },
@@ -65,76 +75,57 @@ export function baseServer() {
     return obj;
 }
 
-export function newGameServer() {
+export async function newGameServer() {
     const server = baseServer();
-    createServerWorld(server);
+    await createServerWorld(server);
     return server;
 }
 
-export function createWorld() {
-    const ecs = newECSWorld();
-
-    // region Queries
-    const player_entity_query = entityQuery(ecs.onWorldLifecycle, (entity) => {
-        return is(PlayerControlledSchema, entity);
-    });
-    const movement_query = entityQuery(ecs.onWorldLifecycle, (entity) => {
-        return (
-            is(PositionSchema, entity) &&
-            is(DesiredDirectionSchema, entity) &&
-            is(PrimitiveObjectSchema, entity)
-        );
-    });
-    // endregion
-
-    // region Systems
-    const movement_system = ecs.addSystem(movement_query, (entities) => {
-        for (let entity of entities) {
-            let dirX = entity.desireDir.x;
-            let dirY = entity.desireDir.y;
-            const norm = Math.sqrt(dirX * dirX + dirY * dirY);
-            if (norm !== 0) {
-                dirX /= norm;
-                dirY /= norm;
-            }
-            entity.x += dirX * globalTicker.deltaTime.value * PLAYER_SPEED;
-            entity.z += dirY * globalTicker.deltaTime.value * PLAYER_SPEED;
-            if (dirX !== 0 || dirY !== 0) {
-                ecs.markAsMutated(entity);
-            }
-        }
-    });
-    // endregion
-
-    return {
-        ecs,
-        queries: {
-            player_entity_query,
-            movement_query,
-        },
-        systems: {
-            movement_system,
-        },
+export async function addBaseSystems(ecs: ECSWorld) {
+    const cleanUpMovementSystem = movementSystem(ecs);
+    const cleanUpChunks = await addChunkDisplacements(ecs);
+    return () => {
+        cleanUpChunks();
+        cleanUpMovementSystem();
     };
 }
 
-export function createServerWorld(server: ReturnType<typeof baseServer>) {
+export async function createServerWorld(server: ReturnType<typeof baseServer>) {
     let ticker = new Ticker();
-    ticker.tickrate.value = 60;
 
-    let socket_entity_map = new Map<Socket, number>();
+    let socket_entity_map = new Map<ServerClientSocket, number>();
     let loggedIn = new Set<number>();
-    let { ecs, queries } = createWorld();
+    const ecs = newECSWorld();
+    const cleanupSystems = await addBaseSystems(ecs);
+
+    const player_entity_query = entityQuery(ecs.onWorldLifecycle, (entity) => {
+        return is(PlayerControlledSchema, entity);
+    });
+
+    const fishingSpot = newFishSpot(10);
+    fishingSpot.x = 0;
+    fishingSpot.z = 0;
+    ecs.addEntity(fishingSpot);
+
+    const fishingSpot2 = newFishSpot(50);
+    fishingSpot2.x = 80;
+    fishingSpot2.z = 0;
+    ecs.addEntity(fishingSpot2);
 
     effect(() => {
         ticker.currentTick.value;
         ecs.tick();
         const mutated = ecs.getMutated();
         for (let entity_id of mutated.values()) {
-            const entity = ecs.getEntity(entity_id);
+            const entity = ecs.getEntity(entity_id)!;
             for (let [sock, id] of socket_entity_map) {
                 if (loggedIn.has(id)) {
-                    sock.emit("update_entity", entity);
+                    emitUpdateEntityWithRetry({
+                        socket: sock,
+                        entity,
+                        maxRetries: 5,
+                        timeout: 500,
+                    });
                 }
             }
         }
@@ -142,6 +133,7 @@ export function createServerWorld(server: ReturnType<typeof baseServer>) {
 
     const socket_lifecycle = server.socketLifeCycle((sock) => {
         let player = mixinPlayerSocketControlled(catBlueprint());
+        player.y = 0.5;
         socket_entity_map.set(sock, player.id);
         let last_ping = Date.now();
         let onDisconnect: (() => void)[] = [];
@@ -150,7 +142,7 @@ export function createServerWorld(server: ReturnType<typeof baseServer>) {
         sock.on("login", (username, cb) => {
             console.log("### Login request", username);
             // Look up player entity to see if username is taken
-            for (let entity of queries.player_entity_query.entities) {
+            for (let entity of player_entity_query.entities) {
                 if (entity.name === username) {
                     cb({ success: false, message: "Username taken" });
                     return;
@@ -165,31 +157,52 @@ export function createServerWorld(server: ReturnType<typeof baseServer>) {
             onDisconnect.push(playerEntityCleanup);
 
             let requestedSpawn = false;
-            sock.on("spawn", (cb) => {
+            sock.on("spawn", async (doneSpawnCb) => {
                 console.log("### Spawn request");
                 if (requestedSpawn) {
                     console.error("User", username, "requested spawn twice");
-                    return cb();
+                    return doneSpawnCb();
                 }
 
                 requestedSpawn = true;
 
                 console.log("### Sending all entities");
+
+                const addPromises: Promise<EmitAddEntityResult>[] = [];
                 for (let entity of ecs.iter()) {
-                    sock.emit("add_entity", entity);
+                    const addResult = emitAddEntityWithRetry({
+                        socket: sock,
+                        entity,
+                        maxRetries: 5,
+                        timeout: 2000,
+                    });
+                    addPromises.push(addResult);
                 }
-                console.log("### Done sending all entities");
-                setTimeout(() => {
-                    cb();
-                }, 100);
+
+                const resolved = await Promise.all(addPromises);
+                const allAcked = resolved.every((res) => res.success);
+                if (allAcked) {
+                    doneSpawnCb();
+                }
 
                 // region Handle ECS sync
                 const lifecycleCleanup = ecs.onWorldLifecycle((entity) => {
-                    console.log("### Adding entity", entity);
-                    sock.emit("add_entity", entity);
+                    // TODO: Handle if we miss an ack
+
+                    emitAddEntityWithRetry({
+                        socket: sock,
+                        entity,
+                        maxRetries: 5,
+                        timeout: 200,
+                    });
 
                     return () => {
-                        sock.emit("remove_entity", entity.id);
+                        emitRemoveEntityWithRetry({
+                            socket: sock,
+                            id: entity.id,
+                            maxRetries: 5,
+                            timeout: 200,
+                        });
                     };
                 });
                 onDisconnect.push(lifecycleCleanup);
@@ -227,9 +240,10 @@ export function createServerWorld(server: ReturnType<typeof baseServer>) {
         ecs,
         dispose: () => {
             socket_lifecycle();
+            cleanupSystems();
         },
     };
 }
 
-const gameServer = newGameServer();
+const gameServer = await newGameServer();
 gameServer.io.listen(3000);

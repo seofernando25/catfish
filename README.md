@@ -23,9 +23,3 @@ bun run server
 # Hosting the game on localhost:1234
 bun run client --host --port 1234
 ```
-
-## Screenshots
-
-![alt](docs/a.png)
-![alt](docs/b.png)
-![alt](docs/c.png)

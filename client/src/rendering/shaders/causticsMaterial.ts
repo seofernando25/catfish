@@ -8,12 +8,28 @@ import {
     AdditiveBlending,
     NormalBlending,
     MultiplyBlending,
+    Color,
 } from "three";
 
 export const causticsMaterial = new ShaderMaterial({
     uniforms: UniformsUtils.merge([
         {
             time: { value: 0 },
+            scale1: { value: 10.0 },
+            scale2: { value: 5.0 },
+            distortion1Strength: { value: 0.1 },
+            distortion2Strength: { value: 0.15 },
+            distortion1Frequency: { value: 5.0 },
+            distortion2Frequency: { value: 4.0 },
+            distortion1Speed: { value: 2.0 },
+            distortion2Speed: { value: 1.5 },
+            edge1ThresholdMin: { value: 0.02 },
+            edge1ThresholdMax: { value: 0.05 },
+            edge2ThresholdMin: { value: 0.03 },
+            edge2ThresholdMax: { value: 0.07 },
+            mainBlue: { value: new Color(0.1, 0.2, 0.3) },
+            darkBlue: { value: new Color(0.08, 0.18, 0.28) },
+            foamColor: { value: new Color(0.9, 0.9, 0.9) },
         },
         {
             causticsOffset: { value: new Vector2(0, 0) },
@@ -35,6 +51,21 @@ export const causticsMaterial = new ShaderMaterial({
         uniform float time;
         uniform float opacity;
         uniform vec2 causticsOffset;
+        uniform float scale1;
+        uniform float scale2;
+        uniform float distortion1Strength;
+        uniform float distortion2Strength;
+        uniform float distortion1Frequency;
+        uniform float distortion2Frequency;
+        uniform float distortion1Speed;
+        uniform float distortion2Speed;
+        uniform float edge1ThresholdMin;
+        uniform float edge1ThresholdMax;
+        uniform float edge2ThresholdMin;
+        uniform float edge2ThresholdMax;
+        uniform vec3 mainBlue;
+        uniform vec3 darkBlue;
+        uniform vec3 foamColor;
         varying vec2 vUv;
         varying vec3 vWorldPosition;
 
@@ -70,20 +101,6 @@ export const causticsMaterial = new ShaderMaterial({
         void main() {
             vec2 uv = vUv + causticsOffset;
 
-            // Parameters for the Voronoi effect
-            float scale1 = 50.0;
-            float scale2 = 200.0;
-            float distortion1Strength = 0.1;
-            float distortion2Strength = 0.15;
-            float distortion1Frequency = 5.0;
-            float distortion2Frequency = 4.0;
-            float distortion1Speed = 2.0;
-            float distortion2Speed = 1.5;
-            float edge1ThresholdMin = 0.02;
-            float edge1ThresholdMax = 0.05;
-            float edge2ThresholdMin = 0.03;
-            float edge2ThresholdMax = 0.07;
-
             // Scale UVs for two layers
             vec2 uv1 = uv * scale1 + vec2(time * 0.1, time * 0.1); // Add time-based movement
             vec2 uv2 = uv * scale2 + vec2(time * 0.05, time * 0.05);
@@ -108,13 +125,8 @@ export const causticsMaterial = new ShaderMaterial({
             float edgeDist2 = voronoi(distortedUV2, cellCoord2);
             float edges2 = smoothstep(edge2ThresholdMin, edge2ThresholdMax, edgeDist2);
 
-            // Define colors
-            vec3 mainBlue = vec3(0.1, 0.2, 0.3);
-            vec3 darkBlue = vec3(0.08, 0.18, 0.28);
-            vec3 foamColor = vec3(0.9, 0.9, 0.9);
-            vec3 e = vec3(0.0);
-
             // Determine color based on Voronoi edges
+            vec3 e = vec3(0.0);
             if (edges2 > 0.5) {
                 e = mainBlue;
             } else {
@@ -139,8 +151,5 @@ export const causticsMaterial = new ShaderMaterial({
     `,
     transparent: true,
     depthWrite: false,
-});
-
-effect(() => {
-    causticsMaterial.uniforms["time"].value = globalTicker.elapsed.value / 4;
+    opacity: 0.9,
 });

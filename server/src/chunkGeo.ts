@@ -1,17 +1,46 @@
-import { hash3 } from "@catfish/common/procedural/common.js";
-import { BufferGeometry, Float32BufferAttribute } from "three";
+import { hash3 } from "@catfish/common/procedural/common.ts";
 
 export type UVInfo = { u0: number; v0: number; u1: number; v1: number };
 
-const geometryMemo = new Map<string, BufferGeometry>();
+type Geometry = {
+    position: Float32Array;
+    uv: Float32Array;
+    normal: Float32Array;
+};
 
-export function createUniqueGridGeometry(size: number, segments: number) {
+export function cloneGeometry(geometry: Geometry): Geometry {
+    return {
+        position: new Float32Array(geometry.position),
+        uv: new Float32Array(geometry.uv),
+        normal: new Float32Array(geometry.normal),
+    };
+}
+
+export function translateGeometry(
+    geometry: Geometry,
+    x: number,
+    y: number,
+    z: number
+) {
+    for (let i = 0; i < geometry.position.length; i += 3) {
+        geometry.position[i] += x;
+        geometry.position[i + 1] += y;
+        geometry.position[i + 2] += z;
+    }
+}
+
+const geometryMemo = new Map<string, Geometry>();
+
+export function createUniqueGridGeometry(
+    size: number,
+    segments: number
+): Geometry {
     const k = `${size},${segments}`;
     const existing = geometryMemo.get(k);
     if (existing) {
-        return existing.clone();
+        return cloneGeometry(existing);
     }
-    const geometry = new BufferGeometry();
+
     const vertices = [];
     const uvs = [];
 
@@ -43,13 +72,15 @@ export function createUniqueGridGeometry(size: number, segments: number) {
         }
     }
 
-    geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
-    geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-    geometry.computeVertexNormals();
+    const geometry = {
+        position: new Float32Array(vertices),
+        uv: new Float32Array(uvs),
+        normal: new Float32Array(vertices.length),
+    };
 
     geometryMemo.set(k, geometry);
 
-    return geometry.clone();
+    return cloneGeometry(geometry);
 }
 
 const crossVec = (a: Float32Array, b: Float32Array, out: Float32Array) => {
@@ -84,9 +115,10 @@ const computedNormal = new Float32Array(3);
 const e1 = new Float32Array(3);
 const e2 = new Float32Array(3);
 
-export function computeUniqueGridVertexNormals(geometry: BufferGeometry) {
-    const positionArray = geometry.attributes["position"].array;
-    const normals = new Float32BufferAttribute(positionArray.length, 3);
+export function computeUniqueGridVertexNormals(geometry: Geometry) {
+    // const positionArray = geometry.attributes["position"].array;
+    const positionArray = geometry.position;
+    const normals = new Float32Array(positionArray.length * 3);
     const normalsAcc = new Float32Array(positionArray.length);
 
     computedNormal.fill(0);
@@ -150,16 +182,14 @@ export function computeUniqueGridVertexNormals(geometry: BufferGeometry) {
         normals.set(normal, i * 3);
     }
 
-    geometry.setAttribute("normal", normals);
-
-    geometry.attributes["normal"].needsUpdate = true;
+    geometry.normal = normals;
 }
 
 /**
  * Modifies the UVs of a specific tile in the grid.
  */
 export function modifyTileUV(
-    geometry: BufferGeometry,
+    geometry: Geometry,
     x: number,
     y: number,
     uvInfo: UVInfo,
@@ -169,7 +199,7 @@ export function modifyTileUV(
     const tileIndex = y * segments + x;
     const vertexOffset = tileIndex * 6; // 6 vertices per tile
 
-    const uvArray = geometry.attributes["uv"].array;
+    const uvArray = geometry.uv;
 
     // Triangle 1
     // Vertex 0: (x0, z0) -> (u0, v1)
@@ -198,11 +228,11 @@ export function modifyTileUV(
     uvArray[(vertexOffset + 5) * 2 + 1] = v0;
 
     // Notify js that UVs have been updated
-    geometry.attributes["uv"].needsUpdate = true;
+    // geometry.attributes["uv"].needsUpdate = true;
 }
 
 export function modifyTileHeight(
-    geometry: BufferGeometry,
+    geometry: Geometry,
     x: number,
     y: number,
     tl: number,
@@ -214,7 +244,8 @@ export function modifyTileHeight(
     const tileIndex = y * dim + x;
     const vertexOffset = tileIndex * 6;
 
-    const positionArray = geometry.attributes["position"].array;
+    // const positionArray = geometry.attributes["position"].array;
+    const positionArray = geometry.position;
 
     // Vertex 0: Top-Left (tl)
     positionArray[(vertexOffset + 0) * 3 + 1] = tl;
@@ -231,5 +262,5 @@ export function modifyTileHeight(
     // Vertex 5: Bottom-Right (br)
     positionArray[(vertexOffset + 5) * 3 + 1] = br;
 
-    geometry.attributes["position"].needsUpdate = true;
+    // geometry.attributes["position"].needsUpdate = true;
 }

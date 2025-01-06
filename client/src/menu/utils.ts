@@ -1,8 +1,7 @@
 import { globalTicker } from "@catfish/common/Ticker.js";
-import { waterSplashAudio } from "../audio";
+import { effect } from "@preact/signals";
 import { globalScene } from "../rendering/renderer";
 import { gameTitleObject } from "../rendering/textures";
-import { effect } from "@preact/signals";
 
 export const droppingTitleSeq = async () => {
     await waitForFirstInteraction();
@@ -26,7 +25,6 @@ export const droppingTitleSeq = async () => {
 
     const fromRotation = Math.PI / 4;
 
-    waterSplashAudio.play();
     const animationEffect = effect(() => {
         globalTicker.currentTick.value;
         const t = globalTicker.currentTick.value;
@@ -55,12 +53,21 @@ export const droppingTitleSeq = async () => {
                 )
             );
         }
+        const isFinished = timeSinceStart > animationDelay + animationDuration;
+
+        if (isFinished) {
+            const startOffset =
+                timeSinceStart - animationDelay - animationDuration;
+            gameTitleObject.position.y =
+                toPosition + Math.cos(-startOffset + Math.PI / 2) * 0.01;
+            gameTitleObject.rotation.z =
+                Math.cos(-startOffset * 0.1 + Math.PI / 2) * 0.01;
+        }
     });
 
     return () => {
         globalScene.remove(gameTitleObject);
         animationEffect();
-        waterSplashAudio.stop();
     };
 };
 

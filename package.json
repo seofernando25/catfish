@@ -1,8 +1,10 @@
 {
     "name": "catfish",
-    "private": true,
     "version": "0.0.0",
-    "type": "module",
+    "devDependencies": {
+        "@types/bun": "^1.1.13"
+    },
+    "private": true,
     "scripts": {
         "client": "cd client && bun run dev",
         "server": "cd server && bun run dev",
@@ -11,9 +13,7 @@
         "preview": "vite preview",
         "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.node.json"
     },
-    "devDependencies": {
-        "@types/bun": "^1.1.13"
-    },
+    "type": "module",
     "workspaces": [
         "client",
         "server",

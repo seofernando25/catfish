@@ -2,7 +2,6 @@ import { TileMapManager, TileMapManagerSymbol } from "./tilemap";
 
 import { effect } from "@preact/signals";
 import {
-    Camera,
     DirectionalLight,
     InstancedMesh,
     Matrix4,
@@ -10,32 +9,18 @@ import {
     MeshBasicMaterial,
     PlaneGeometry,
     Scene,
-    SphereGeometry,
     Vector3,
 } from "three";
-import { CameraBehavior } from "./behaviors/CameraBehavior";
-import { GameUIBehavior } from "./behaviors/GameUIBehavior";
 
 import { camera } from "./rendering/camera";
 import { causticsMaterial } from "./rendering/shaders/causticsMaterial";
-import {
-    getSubTextureFromAtlas,
-    skyboxTexture,
-    spritesheetData,
-} from "./rendering/textures";
-import {
-    ClientSocketSymbol,
-    socket,
-    waitUntilConnected,
-    type ClientSocket,
-} from "./socket";
-import { addHeapStats, tweakpaneRef } from "./stats";
+import { getSubTextureFromAtlas, spritesheetData } from "./rendering/textures";
+import { socket } from "./socket";
+import { tweakpaneRef } from "./stats";
 // import { sampleContinentalness } from "@catfish/common/procedural/continentalness";
-import { PlayerSpriteBehavior } from "./behaviors/PlayerSpriteBehavior";
-import { WASDMoveBehavior } from "./behaviors/WASDMoveBehavior";
 import type { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants.js";
 import type { provide } from "@catfish/common/di/index.js";
-import type { globalTicker } from "@catfish/common/Ticker.js";
+import { globalTicker } from "@catfish/common/Ticker.js";
 
 export async function game(scene: Scene) {
     // const createNetworkedPlayer = (
@@ -226,13 +211,6 @@ export async function game(scene: Scene) {
     // scene.add(debugUV);
 
     // add a skybox
-    const skybox = new SphereGeometry(900, 32, 32);
-    const skyboxMat = new MeshBasicMaterial({
-        map: skyboxTexture,
-        side: 1,
-    });
-    const skyboxMesh = new Mesh(skybox, skyboxMat);
-    scene.add(skyboxMesh);
 
     const light = new DirectionalLight(0xffffff, 2);
     light.castShadow = true; // default false
@@ -240,13 +218,6 @@ export async function game(scene: Scene) {
     // Tweakpane color
     tweakpaneRef.addBinding(light, "color", {
         label: "Light Color",
-        color: {
-            type: "float",
-        },
-    });
-
-    tweakpaneRef.addBinding(skyboxMat, "color", {
-        label: "Skybox Tint",
         color: {
             type: "float",
         },
@@ -266,8 +237,8 @@ export async function game(scene: Scene) {
         if (player) {
             causticsMesh.position.x = player.x;
             causticsMesh.position.z = player.y;
-            skyboxMesh.position.x = player.x;
-            skyboxMesh.position.z = player.y;
+            // skyboxMesh.position.x = player.x;
+            // skyboxMesh.position.z = player.y;
 
             causticsMaterial.uniforms["causticsOffset"].value.x =
                 player.x / causticsGeometry.parameters.width;

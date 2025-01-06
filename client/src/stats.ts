@@ -32,6 +32,8 @@ const debugFlagsFolder = tweakpaneRef.addFolder({
 for (const [key, value] of Object.entries(debugFlagsLocal)) {
     const bind = debugFlagsFolder.addBinding(value, "value", {
         label: key,
+        min: 0,
+        max: 1,
     });
     bind.on("change", () => {
         console.log("Saving debug flags to local storage");
@@ -46,7 +48,7 @@ export const addSocketFolders = async () => {
     });
 
     let socketStat = {
-        id: "",
+        id: socket.id ?? "undefined",
         ping: 0,
     };
 
@@ -94,13 +96,24 @@ export const addSocketFolders = async () => {
         socketStat.id = socket.id ?? "undefined";
     });
 
-    while (true) {
+    socket.on("disconnect", () => {
+        socketStat.id = "undefined";
+    });
+
+    const updatePing = async () => {
         const newResponse = await ping();
         pingResponse.client_delay = newResponse.client_delay;
         pingResponse.round_trip_time = newResponse.round_trip_time;
         pingResponse.server_delay = newResponse.server_delay;
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
+    };
+
+    const pingInterval = setInterval(updatePing, 1000);
+
+    return () => {
+        advancedSocketFolder.dispose();
+        socketFolder.dispose();
+        clearInterval(pingInterval);
+    };
 };
 
 setTimeout(() => {
@@ -142,18 +155,6 @@ tvGirlModeButton.on("click", () => {
 });
 
 // endregion
-
-// tweakpaneRef.addBinding(stats, "Ping", {
-//     readonly: true,
-// });
-
-// tweakpaneRef.addBinding(stats, "CamAngle", {
-//     readonly: true,
-// });
-
-// tweakpaneRef.addBinding(stats, "PlayerDir", {
-//     readonly: true,
-// });
 
 // Heap stats
 

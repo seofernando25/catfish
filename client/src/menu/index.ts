@@ -9,6 +9,7 @@ import { getSubTextureFromAtlas } from "../rendering/textures";
 import { globalScene } from "../rendering/renderer";
 import { effect } from "@preact/signals";
 import { globalTicker } from "@catfish/common/Ticker.js";
+import { menuMusicAudio } from "../audio";
 export const loginSeq = async () => {
     // Wait for window first interaction
     let username = "";
@@ -46,6 +47,7 @@ export const loginSeq = async () => {
 
 export const menuSeq = async () => {
     droppingTitleSeq();
+    const menuMusic = menuMusicAudio.play();
 
     // Show buttons and await for first pressed
     const buttonMat = new MeshBasicMaterial({
@@ -83,6 +85,19 @@ export const menuSeq = async () => {
     }, 1000);
 
     await waitForNextInteraction();
+    // menuMusic.stop();
+
+    // fade out music
+
+    await (async () => {
+        while (menuMusicAudio.getVolume() > 0.001) {
+            menuMusicAudio.setVolume(menuMusicAudio.getVolume() - 0.025);
+            console.log("Music volume", menuMusicAudio.getVolume());
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        console.log("Music faded out");
+        menuMusicAudio.stop();
+    })();
 
     return "game";
 };

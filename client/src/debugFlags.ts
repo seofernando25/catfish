@@ -1,8 +1,9 @@
-import { effect, Signal, signal } from "@preact/signals";
+import { signal } from "@preact/signals";
 
 let debugFlags = {
     showDebugPanel: signal(false),
     skipLogin: signal(false),
+    masterVolume: signal(0.5),
 } as const;
 
 let loaded = false;

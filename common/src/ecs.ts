@@ -39,6 +39,12 @@ export function entityQuery<T>(
     };
 }
 
+export type EntityQueryType<V> = V extends ReturnType<
+    typeof entityQuery<infer T>
+>
+    ? T
+    : never;
+
 export function newScheduler() {
     const systems = new Set<() => void>();
 
@@ -149,3 +155,5 @@ export function newECSWorld() {
     };
     return obj;
 }
+
+export type ECSWorld = ReturnType<typeof newECSWorld>;

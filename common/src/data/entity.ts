@@ -1,7 +1,9 @@
 import {
+    array,
     boolean,
     custom,
     intersect,
+    literal,
     number,
     object,
     pipe,
@@ -10,8 +12,8 @@ import {
     type InferOutput,
 } from "valibot";
 import { newPrimitiveObject, type PrimitiveObject } from "./objectData";
-import type { SpritesheetKey } from "../spritesheetLib";
 import type { ServerClientSocket } from "../events/server";
+import type { spritesheetData } from "../../../client/src/rendering/textures";
 
 // Use valibot to define extending types
 
@@ -174,8 +176,7 @@ export function mixinPlayerSocketControlled<T extends PrimitiveObject>(
     return playerControlled;
 }
 
-// Let it be enum of spritessh
-
+type SpritesheetKey = keyof typeof spritesheetData.frames;
 export const RenderSpriteSchema = object({
     spriteSrc: custom<SpritesheetKey>((input: unknown) =>
         // We could check if the input is a valid spriteSrc
@@ -192,5 +193,28 @@ export function renderSpriteMixin<T extends PositionComponent>(
 ): T & RenderSpriteComponent {
     const obj = p as T & RenderSpriteComponent;
     obj.spriteSrc = obj.spriteSrc ?? v?.spriteSrc ?? "uv8";
+    return obj;
+}
+
+// chunkDataMixin
+
+export const ChunkDataSchema = object({
+    isChunkData: literal(true),
+    position: array(number()),
+    normal: array(number()),
+    uv: array(number()),
+});
+
+export type ChunkDataComponent = InferOutput<typeof ChunkDataSchema>;
+
+export function chunkDataMixin<T extends PrimitiveObject>(
+    p: T,
+    v?: ChunkDataComponent
+): T & ChunkDataComponent {
+    const obj = p as T & ChunkDataComponent;
+    obj.isChunkData = obj.isChunkData ?? v?.isChunkData ?? true;
+    obj.position = obj.position ?? v?.position ?? [];
+    obj.normal = obj.normal ?? v?.normal ?? [];
+    obj.uv = obj.uv ?? v?.uv ?? [];
     return obj;
 }
