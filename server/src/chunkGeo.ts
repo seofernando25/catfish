@@ -92,11 +92,9 @@ const crossVec = (a: Float32Array, b: Float32Array, out: Float32Array) => {
 // Helper function to normalize a vector
 const normalize = (v: Float32Array) => {
     const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    if (len > 0) {
-        v[0] /= len;
-        v[1] /= len;
-        v[2] /= len;
-    }
+    v[0] /= len;
+    v[1] /= len;
+    v[2] /= len;
 };
 
 const subVectors = (a: Float32Array, b: Float32Array, out: Float32Array) => {
@@ -111,28 +109,20 @@ const addVecTo = (x1: number, y1: number, z1: number, out: Float32Array) => {
     out[2] += z1;
 };
 
-const computedNormal = new Float32Array(3);
-const e1 = new Float32Array(3);
-const e2 = new Float32Array(3);
-
 export function computeUniqueGridVertexNormals(geometry: Geometry) {
-    // const positionArray = geometry.attributes["position"].array;
-    const positionArray = geometry.position;
-    const normals = new Float32Array(positionArray.length * 3);
-    const normalsAcc = new Float32Array(positionArray.length);
-
-    computedNormal.fill(0);
-    e1.fill(0);
-    e2.fill(0);
+    const normalsAcc = new Float32Array(geometry.position.length);
+    const computedNormal = new Float32Array(3);
+    const e1 = new Float32Array(3);
+    const e2 = new Float32Array(3);
 
     let i = 0;
     const vertexNormalsOffsets = new Map<number, number>();
 
     const addNormal = (index: number, normal: Float32Array) => {
         const key = hash3(
-            positionArray[index * 3],
-            positionArray[index * 3 + 1],
-            positionArray[index * 3 + 2]
+            geometry.position[index * 3],
+            geometry.position[index * 3 + 1],
+            geometry.position[index * 3 + 2]
         );
         if (!vertexNormalsOffsets.has(key)) {
             vertexNormalsOffsets.set(key, i++);
@@ -148,16 +138,17 @@ export function computeUniqueGridVertexNormals(geometry: Geometry) {
         );
     };
 
-    for (let i = 0; i < positionArray.length; i += 9) {
+    for (let i = 0; i < geometry.position.length; i += 9) {
         // Get vertices of the current triangle
-        const v0 = positionArray.subarray(i) as Float32Array;
-        const v1 = positionArray.subarray(i + 3) as Float32Array;
-        const v2 = positionArray.subarray(i + 6) as Float32Array;
+        const v0 = geometry.position.subarray(i);
+        const v1 = geometry.position.subarray(i + 3);
+        const v2 = geometry.position.subarray(i + 6);
 
         subVectors(v1, v0, e1);
         subVectors(v2, v0, e2);
 
         crossVec(e1, e2, computedNormal);
+
         normalize(computedNormal);
 
         const vertexIndex = i / 3;
@@ -166,11 +157,11 @@ export function computeUniqueGridVertexNormals(geometry: Geometry) {
         addNormal(vertexIndex + 2, computedNormal);
     }
 
-    for (let i = 0; i < positionArray.length / 3; i++) {
+    for (let i = 0; i < geometry.position.length / 3; i++) {
         const key = hash3(
-            positionArray[i * 3],
-            positionArray[i * 3 + 1],
-            positionArray[i * 3 + 2]
+            geometry.position[i * 3],
+            geometry.position[i * 3 + 1],
+            geometry.position[i * 3 + 2]
         );
         const normalIndex = vertexNormalsOffsets.get(key)!;
         const normal = normalsAcc.subarray(
@@ -179,10 +170,8 @@ export function computeUniqueGridVertexNormals(geometry: Geometry) {
         );
         normalize(normal);
 
-        normals.set(normal, i * 3);
+        geometry.normal.set(normal, i * 3);
     }
-
-    geometry.normal = normals;
 }
 
 /**

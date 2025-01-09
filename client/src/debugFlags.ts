@@ -30,6 +30,7 @@ export function getDebugFlags() {
 export function saveDebugFlagsToLocalStorage() {
     const serialized: Record<string, boolean> = {};
     for (const [key, value] of Object.entries(debugFlags)) {
+        // @ts-expect-error
         serialized[key] = value.value;
     }
     localStorage.setItem("debugFlags", JSON.stringify(serialized));

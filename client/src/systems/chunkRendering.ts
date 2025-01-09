@@ -4,11 +4,11 @@ import {
     PositionSchema,
 } from "@catfish/common/data/entity.js";
 import { entityQuery, type ECSWorld } from "@catfish/common/ecs.js";
-import { getUVOffsets } from "@catfish/common/rendering/atlas.js";
 import {
     BufferGeometry,
     DataTexture,
     DirectionalLight,
+    DirectionalLightHelper,
     Float32BufferAttribute,
     Mesh,
     MeshToonMaterial,
@@ -19,19 +19,11 @@ import {
 import { is } from "valibot";
 import {
     computeUniqueGridVertexNormals,
-    createUniqueGridGeometry,
     modifyTileHeight,
-    modifyTileUV,
 } from "../chunkGeometry";
 import { spriteSheetTexture } from "../rendering/textures";
-import pako from "pako";
 
 export const chunkRenderingSystem = (scene: Scene, world: ECSWorld) => {
-    const chunkPlaneGeometry = createUniqueGridGeometry(
-        CHUNK_SIZE,
-        CHUNK_SIZE
-    ).translate(CHUNK_SIZE / 2, 0, CHUNK_SIZE / 2);
-
     // returns a threejs texture from black to white in n tones
     const nToneGradientTexture = (n: number) => {
         // Create w x h (n x 1) texture
@@ -56,17 +48,38 @@ export const chunkRenderingSystem = (scene: Scene, world: ECSWorld) => {
         return texture;
     };
 
-    const fiveTone = nToneGradientTexture(8);
+    const tones = nToneGradientTexture(32);
 
     const chunkMaterial = new MeshToonMaterial({
         map: spriteSheetTexture,
-        gradientMap: fiveTone,
-        side: 2,
+        gradientMap: tones,
     });
 
     // add directional light
-    const light = new DirectionalLight(0xffffff, 1);
-    scene.add(light);
+
+    const dirLight = new DirectionalLight(0xffffff, 3);
+    dirLight.color.setHSL(0.1, 1, 0.95);
+    dirLight.position.set(-1, 1, 1);
+    dirLight.position.multiplyScalar(30);
+    scene.add(dirLight);
+
+    // dirLight.castShadow = true;
+
+    // dirLight.shadow.mapSize.width = 2048;
+    // dirLight.shadow.mapSize.height = 2048;
+
+    // const d = 50;
+
+    // dirLight.shadow.camera.left = -d;
+    // dirLight.shadow.camera.right = d;
+    // dirLight.shadow.camera.top = d;
+    // dirLight.shadow.camera.bottom = -d;
+
+    // dirLight.shadow.camera.far = 3500;
+    // dirLight.shadow.bias = -0.0001;
+
+    const dirLightHelper = new DirectionalLightHelper(dirLight, 10);
+    scene.add(dirLightHelper);
 
     const renderableInstancesMap = new Map<number, Mesh>();
 
@@ -96,21 +109,16 @@ export const chunkRenderingSystem = (scene: Scene, world: ECSWorld) => {
 
     const chunkLifecycle = chunk_query.entityLifeCycle((entity) => {
         const geometry = new BufferGeometry();
-        const positionsUint8 = pako.ungzip(new Uint8Array(entity.position));
-        const positions = new Float32Array(positionsUint8.buffer);
-
-        const uvUint8 = pako.ungzip(new Uint8Array(entity.uv));
-        const uv = new Float32Array(uvUint8.buffer);
-
-        const normalsUint8 = pako.ungzip(new Uint8Array(entity.normal));
-        const normals = new Float32Array(normalsUint8.buffer);
 
         geometry.setAttribute(
             "position",
-            new Float32BufferAttribute(positions, 3)
+            new Float32BufferAttribute(entity.position, 3)
         );
-        geometry.setAttribute("normal", new Float32BufferAttribute(normals, 3));
-        geometry.setAttribute("uv", new Float32BufferAttribute(uv, 2));
+        geometry.setAttribute(
+            "normal",
+            new Float32BufferAttribute(entity.normal, 3)
+        );
+        geometry.setAttribute("uv", new Float32BufferAttribute(entity.uv, 2));
 
         geometry.attributes["position"].needsUpdate = true;
         geometry.attributes["normal"].needsUpdate = true;

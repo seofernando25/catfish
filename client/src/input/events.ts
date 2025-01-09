@@ -43,31 +43,6 @@ export const keyboardOrSignal = (matches: Partial<KeyboardEvent>[]) => {
     );
 };
 
-// export const mouseHook = (
-//     match: Partial<MouseEvent>,
-//     cb: (value: number) => void
-// ) => {
-//     const onMouseDown = (event: MouseEvent) => {
-//         if (partialMatch(event, match)) {
-//             cb(1);
-//         }
-//     };
-
-//     const onMouseUp = (event: MouseEvent) => {
-//         if (partialMatch(event, match)) {
-//             cb(0);
-//         }
-//     };
-
-//     window.addEventListener("mousedown", onMouseDown);
-//     window.addEventListener("mouseup", onMouseUp);
-
-//     return () => {
-//         window.removeEventListener("mousedown", onMouseDown);
-//         window.removeEventListener("mouseup", onMouseUp);
-//     };
-// };
-
 const cachedMouseCbs = new Map<string, ReadonlySignal<number>>();
 
 export const mouseSignal = (match: Partial<MouseEvent>) => {

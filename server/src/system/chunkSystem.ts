@@ -1,18 +1,16 @@
-import type { ECSWorld } from "@catfish/common/ecs.ts";
-import { genWorldHeightMapsFromImage } from "../gen";
 import { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants.ts";
-import { newPrimitiveObject } from "@catfish/common/data/objectData.ts";
 import { chunkDataMixin, positionMixin } from "@catfish/common/data/entity.ts";
+import { newPrimitiveObject } from "@catfish/common/data/objectData.ts";
+import type { ECSWorld } from "@catfish/common/ecs.ts";
+import { getUVOffsets } from "@catfish/common/rendering/atlas.ts";
 import {
-    cloneGeometry,
     computeUniqueGridVertexNormals,
     createUniqueGridGeometry,
     modifyTileHeight,
     modifyTileUV,
     translateGeometry,
 } from "../chunkGeo";
-import { getUVOffsets } from "@catfish/common/rendering/atlas.ts";
-
+import { genWorldHeightMapsFromImage } from "../gen";
 const indexToCoords = (index: number) => {
     const x = Math.floor(index % WORLD_ZONE_DIM);
     const y = Math.floor(index / WORLD_ZONE_DIM);
@@ -25,29 +23,38 @@ const chunkIndexToCoords = (index: number) => {
     return { x, y };
 };
 
-const generateChunkDisplacements = async () => {
+const generateChunkDisplacements = async (): Promise<number[][][]> => {
+    const t = performance.now();
     const heightMaps = await genWorldHeightMapsFromImage();
-    const chunkDisplacements = [];
+    const chunkDisplacements: number[][][] = [];
 
     if (!heightMaps) {
         console.error("Height maps not generated");
         return [];
     }
 
-    for (let i = 0; i < heightMaps.length; i++) {
+    const totalZones = WORLD_ZONE_DIM * WORLD_ZONE_DIM;
+    const totalChunks = CHUNK_SIZE * CHUNK_SIZE;
+
+    // Precompute totalChunks for indexing
+    const totalChunksPerZone = CHUNK_SIZE * CHUNK_SIZE;
+
+    for (let i = 0; i < totalZones; i++) {
         const coords = indexToCoords(i);
         const chunkX = coords.x;
         const chunkY = coords.y;
-        const chunkDisplacement: number[][] = Array.from(
-            { length: CHUNK_SIZE * CHUNK_SIZE },
-            () => [0, 0, 0, 0]
-        );
-        const heightMapZone = heightMaps[i];
+
+        const chunkDisplacement: number[][] = new Array(totalChunks);
+        for (let j = 0; j < totalChunks; j++) {
+            chunkDisplacement[j] = [0, 0, 0, 0];
+        }
+
+        const zoneStartIdx = i * totalChunksPerZone;
 
         const getTileHeight = (x: number, y: number): number => {
             if (x >= 0 && x < CHUNK_SIZE && y >= 0 && y < CHUNK_SIZE) {
                 // Within the current chunk
-                return heightMapZone[y * CHUNK_SIZE + x];
+                return heightMaps[zoneStartIdx + y * CHUNK_SIZE + x];
             } else {
                 // Outside the current chunk, fetch from adjacent chunks
                 let adjacentChunkX = chunkX;
@@ -72,24 +79,23 @@ const generateChunkDisplacements = async () => {
                     adjY = 0;
                 }
 
-                // Fetch the adjacent chunk's height map
-                const adjacentZoneIdx =
-                    adjacentChunkY * WORLD_ZONE_DIM + adjacentChunkX;
-
-                const outOfBounds =
+                // Check bounds
+                if (
                     adjacentChunkX < 0 ||
                     adjacentChunkY < 0 ||
                     adjacentChunkX >= WORLD_ZONE_DIM ||
-                    adjacentChunkY >= WORLD_ZONE_DIM;
-
-                const adjacentZone = heightMaps[adjacentZoneIdx];
-
-                if (adjacentZone && !outOfBounds) {
-                    const adjIdx = adjY * CHUNK_SIZE + adjX;
-                    return adjacentZone[adjIdx];
-                } else {
+                    adjacentChunkY >= WORLD_ZONE_DIM
+                ) {
                     return -99;
                 }
+
+                const adjacentZoneIdx =
+                    adjacentChunkY * WORLD_ZONE_DIM + adjacentChunkX;
+                const adjacentZoneStartIdx =
+                    adjacentZoneIdx * totalChunksPerZone;
+                return heightMaps[
+                    adjacentZoneStartIdx + adjY * CHUNK_SIZE + adjX
+                ];
             }
         };
 
@@ -99,9 +105,7 @@ const generateChunkDisplacements = async () => {
                 const tileTopValue = getTileHeight(x, y - 1);
                 const tileBottomValue = getTileHeight(x, y + 1);
                 const tileLeftValue = getTileHeight(x - 1, y);
-
                 const tileRightValue = getTileHeight(x + 1, y);
-
                 const tileTopLeft = getTileHeight(x - 1, y - 1);
                 const tileTopRight = getTileHeight(x + 1, y - 1);
                 const tileBottomLeft = getTileHeight(x - 1, y + 1);
@@ -128,45 +132,78 @@ const generateChunkDisplacements = async () => {
 
                 // Assign to the vertexDisplacements 2D array
                 const cellIndex = y * CHUNK_SIZE + x;
-                if (chunkDisplacement[cellIndex] === undefined) {
-                    console.error("Undefined index at", y, x);
-                    console.error("Size was", chunkDisplacement.length);
-                    return [];
-                }
                 chunkDisplacement[cellIndex][0] = tlVertexValue;
                 chunkDisplacement[cellIndex][1] = trVertexValue;
                 chunkDisplacement[cellIndex][2] = blVertexValue;
                 chunkDisplacement[cellIndex][3] = brVertexValue;
             }
         }
+
         chunkDisplacements.push(chunkDisplacement);
     }
+
+    const elapsed = performance.now() - t;
+    console.log(`Chunk Displacements generated in ${elapsed.toFixed(2)} ms`);
 
     return chunkDisplacements;
 };
 
+// Used to avoid allocation runtime allocations
+const planeGeometry = createUniqueGridGeometry(CHUNK_SIZE, CHUNK_SIZE);
+const offsetArrays = new Int32Array(planeGeometry.normal.length * 10);
+offsetArrays.fill(-1);
+const normalsAcc = new Float32Array(planeGeometry.normal.length);
+
 export const addChunkDisplacements = async (ecs: ECSWorld) => {
-    const planeGeometry = createUniqueGridGeometry(CHUNK_SIZE, CHUNK_SIZE);
     translateGeometry(planeGeometry, CHUNK_SIZE / 2, 0, CHUNK_SIZE / 2);
 
     const displacements = await generateChunkDisplacements();
-
     console.log("Adding chunk displacements to ECS");
-    const entityDeconstructors: (() => void)[] = [];
+
+    const coordsI = displacements.map((_, i) => indexToCoords(i));
+
+    const uvInfo = getUVOffsets("sand1");
+
+    let t = performance.now();
+    const positionsBuffer = new Float32Array(
+        planeGeometry.position.length * displacements.length
+    );
+    const uvsBuffer = new Float32Array(
+        planeGeometry.uv.length * displacements.length
+    );
+    const normalsBuffer = new Float32Array(
+        planeGeometry.normal.length * displacements.length
+    );
+
+    // Set up buffers
     for (let i = 0; i < displacements.length; i++) {
-        const coords = indexToCoords(i);
-        const chunkX = coords.x;
-        const chunkY = coords.y;
-        const tileDisplacements = displacements[i];
-        const entity = newPrimitiveObject();
-        const posEntity = positionMixin(entity);
-        posEntity.x = chunkX * CHUNK_SIZE;
-        posEntity.y = 0;
-        posEntity.z = chunkY * CHUNK_SIZE;
+        positionsBuffer.set(
+            planeGeometry.position,
+            i * planeGeometry.position.length
+        );
+        uvsBuffer.set(planeGeometry.uv, i * planeGeometry.uv.length);
+        normalsBuffer.set(
+            planeGeometry.normal,
+            i * planeGeometry.normal.length
+        );
+    }
 
-        const geometry = cloneGeometry(planeGeometry);
+    const geometries = displacements.map((tileDisplacements, i) => {
+        const geometry = {
+            position: positionsBuffer.subarray(
+                i * planeGeometry.position.length,
+                (i + 1) * planeGeometry.position.length
+            ),
+            uv: uvsBuffer.subarray(
+                i * planeGeometry.uv.length,
+                (i + 1) * planeGeometry.uv.length
+            ),
+            normal: normalsBuffer.subarray(
+                i * planeGeometry.normal.length,
+                (i + 1) * planeGeometry.normal.length
+            ),
+        };
 
-        const uvInfo = getUVOffsets("sand1");
         for (let i = 0; i < tileDisplacements.length; i++) {
             const coords = chunkIndexToCoords(i);
             const x = coords.x;
@@ -181,32 +218,42 @@ export const addChunkDisplacements = async (ecs: ECSWorld) => {
             modifyTileHeight(geometry, x, y, tl, tr, bl, br, CHUNK_SIZE);
         }
 
+        // 2X faster but currently has issues with hash collisions
+        // math.computeUniqueGridVertexNormals(
+        //     geometry.position,
+        //     geometry.position.length,
+        //     geometry.normal,
+        //     geometry.normal.length,
+        //     offsetArrays,
+        //     offsetArrays.length,
+        //     normalsAcc
+        // );
+
         computeUniqueGridVertexNormals(geometry);
+        return geometry;
+    });
+    console.log("Time to generate geometries:", performance.now() - t);
 
-        const chunkEntity = chunkDataMixin(entity, {
-            isChunkData: true,
-            position: Array.from(
-                Bun.gzipSync(new Uint8Array(geometry.position.buffer))
-            ),
-            uv: Array.from(Bun.gzipSync(new Uint8Array(geometry.uv.buffer))),
-            normal: Array.from(
-                Bun.gzipSync(new Uint8Array(geometry.normal.buffer))
-            ),
-        });
-
-        // const compressed = Bun.gzipSync(new Uint8Array(geometry.position));
-        // console.log("Compressed size", compressed.length);
-        // const decompressed = Bun.gunzipSync(compressed);
-        // console.log("Decompressed size", decompressed.length);
-        // const compressionRatio = compressed.length / decompressed.length;
-        // console.log("Compression ratio", compressionRatio);
-
-        const removeEntity = ecs.addEntity(chunkEntity);
-        entityDeconstructors.push(removeEntity);
-        await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-
-    console.log("Added chunk displacements to ECS");
+    t = performance.now();
+    const entities = coordsI.map((coord, i) =>
+        chunkDataMixin(
+            positionMixin(newPrimitiveObject(), {
+                x: coord.x * CHUNK_SIZE,
+                y: 0,
+                z: coord.y * CHUNK_SIZE,
+            }),
+            {
+                isChunkData: true,
+                position: geometries[i].position,
+                uv: geometries[i].uv,
+                normal: geometries[i].normal,
+            }
+        )
+    );
+    const entityDeconstructors = entities.map((entity) =>
+        ecs.addEntity(entity)
+    );
+    console.log("Added mesh to ECS");
     return () => {
         for (let deconstructor of entityDeconstructors) {
             deconstructor();

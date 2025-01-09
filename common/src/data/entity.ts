@@ -2,6 +2,7 @@ import {
     array,
     boolean,
     custom,
+    instance,
     intersect,
     literal,
     number,
@@ -99,9 +100,9 @@ export function animalMixin<T extends PrimitiveObject>(
 }
 
 export function baseAnimalBlueprint() {
-    return renderSpriteMixin(animalMixin(baseCreatureBlueprint()), {
-        spriteSrc: "Sam_forward",
-    });
+    const sprite = renderSpriteMixin(animalMixin(baseCreatureBlueprint()));
+    sprite.spriteSrc = "Fallback_Fish";
+    return sprite;
 }
 
 export const BrainSchema = object({
@@ -155,7 +156,6 @@ export const PlayerControlledSchema = intersect([
     NamedComponentSchema,
     SocketIDComponentSchema,
     DesiredDirectionSchema,
-    PositionSchema,
 ]);
 export type PlayerControlledComponent = InferOutput<
     typeof PlayerControlledSchema
@@ -183,6 +183,8 @@ export const RenderSpriteSchema = object({
         // but leave open for now
         typeof input === "string" ? true : false
     ),
+    spriteInterpolation: number(),
+    spriteScale: number(),
 });
 
 export type RenderSpriteComponent = InferOutput<typeof RenderSpriteSchema>;
@@ -193,6 +195,9 @@ export function renderSpriteMixin<T extends PositionComponent>(
 ): T & RenderSpriteComponent {
     const obj = p as T & RenderSpriteComponent;
     obj.spriteSrc = obj.spriteSrc ?? v?.spriteSrc ?? "uv8";
+    obj.spriteInterpolation =
+        obj.spriteInterpolation ?? v?.spriteInterpolation ?? 1;
+    obj.spriteScale = obj.spriteScale ?? v?.spriteScale ?? 1;
     return obj;
 }
 
@@ -200,9 +205,9 @@ export function renderSpriteMixin<T extends PositionComponent>(
 
 export const ChunkDataSchema = object({
     isChunkData: literal(true),
-    position: array(number()),
-    normal: array(number()),
-    uv: array(number()),
+    position: instance(Float32Array<ArrayBufferLike>),
+    normal: instance(Float32Array<ArrayBufferLike>),
+    uv: instance(Float32Array<ArrayBufferLike>),
 });
 
 export type ChunkDataComponent = InferOutput<typeof ChunkDataSchema>;

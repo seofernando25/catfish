@@ -1,10 +1,8 @@
-import { Pane } from "tweakpane";
-import type { heapStats } from "bun:jsc";
-import { io } from "socket.io-client";
-import { socket } from "./socket";
-import { getDebugFlags, saveDebugFlagsToLocalStorage } from "./debugFlags";
 import { effect } from "@preact/signals";
-import { ping } from "./networkCalls";
+import type { heapStats } from "bun:jsc";
+import { Pane } from "tweakpane";
+import { getDebugFlags, saveDebugFlagsToLocalStorage } from "./debugFlags";
+import { socket } from "./socket";
 
 export const stats = {
     ConnState: "Disconnected",
@@ -42,6 +40,27 @@ for (const [key, value] of Object.entries(debugFlagsLocal)) {
 }
 
 export const addSocketFolders = async () => {
+    type PingResponse = {
+        round_trip_time: number;
+        client_delay: number;
+        server_delay: number;
+    };
+
+    const ping = (): Promise<PingResponse> => {
+        const client_send_time = Date.now();
+        return new Promise((resolve) => {
+            socket.emit("ping", client_send_time, (cb) => {
+                const server_receive_time = cb.timestamp;
+                const now = Date.now();
+                resolve({
+                    round_trip_time: now - client_send_time,
+                    client_delay: server_receive_time - client_send_time,
+                    server_delay: now - server_receive_time,
+                });
+            });
+        });
+    };
+
     const socketFolder = tweakpaneRef.addFolder({
         title: "Socket",
         expanded: false,

@@ -5,11 +5,14 @@ import {
 import { PrimitiveObjectSchema } from "@catfish/common/data/objectData.js";
 import { entityQuery, type ECSWorld } from "@catfish/common/ecs.js";
 import {
+    BoxGeometry,
     Mesh,
     MeshBasicMaterial,
     PlaneGeometry,
+    PointLight,
     Quaternion,
     Scene,
+    SpotLight,
     Vector3,
 } from "three";
 import { is } from "valibot";
@@ -20,7 +23,12 @@ export const spriteRenderingSystem = (scene: Scene, world: ECSWorld) => {
     const geometries = new Map<string, PlaneGeometry>();
     const materials = new Map<string, MeshBasicMaterial>();
 
-    const renderableInstancesMap = new Map<number, Mesh>();
+    const renderableInstancesMap = new Map<
+        number,
+        {
+            mesh: Mesh;
+        }
+    >();
 
     const getGeoMat = (spriteSrc: keyof typeof spritesheetData.frames) => {
         if (!geometries.has(spriteSrc)) {
@@ -34,8 +42,8 @@ export const spriteRenderingSystem = (scene: Scene, world: ECSWorld) => {
         if (!materials.has(spriteSrc)) {
             const mat = new MeshBasicMaterial({
                 map: getSubTextureFromAtlas(spriteSrc),
-                alphaTest: 0.5,
                 transparent: true,
+                alphaTest: 0.85,
             });
             materials.set(spriteSrc, mat);
         }
@@ -58,7 +66,16 @@ export const spriteRenderingSystem = (scene: Scene, world: ECSWorld) => {
         const spriteSrc = entity.spriteSrc;
         const geoMat = getGeoMat(spriteSrc);
         const object = new Mesh(geoMat.geometry, geoMat.material);
-        renderableInstancesMap.set(entity.id, object);
+        object.scale.set(
+            entity.spriteScale,
+            entity.spriteScale,
+            entity.spriteScale
+        );
+        object.renderOrder = -1;
+        const o = {
+            mesh: object,
+        };
+        renderableInstancesMap.set(entity.id, o);
 
         scene.add(object);
         return () => {
@@ -77,29 +94,39 @@ export const spriteRenderingSystem = (scene: Scene, world: ECSWorld) => {
                 if (!object) {
                     continue;
                 }
-                if (geoMat.material !== object.material) {
-                    object.material = geoMat.material;
+                if (geoMat.material !== object.mesh.material) {
+                    object.mesh.material = geoMat.material;
                 }
-                object.position.lerp(renderable, 0.19);
+                object.mesh.position.lerp(
+                    renderable,
+                    renderable.spriteInterpolation
+                );
 
                 quaternion.identity();
                 const floorNormal = up.clone(); // TODO: if we are on a slanted surface, this should be the normal of the surface
                 quaternion.setFromUnitVectors(up, floorNormal); // Align the 'up' vector to the floorNormal
-                object.quaternion.copy(quaternion);
+                object.mesh.quaternion.copy(quaternion);
+                object.mesh.scale.set(
+                    renderable.spriteScale,
+                    renderable.spriteScale,
+                    renderable.spriteScale
+                );
 
-                // Step 2: Face the camera
-                const dx = object.position.x - camera.value.position.x;
-                const dz = object.position.z - camera.value.position.z;
+                const dx = object.mesh.position.x - camera.value.position.x;
+                const dz = object.mesh.position.z - camera.value.position.z;
                 const angle = Math.atan2(dz, dx);
                 const spriteOffset = Math.PI / 2;
-                object.rotateOnWorldAxis(floorNormal, -angle - spriteOffset);
+                object.mesh.rotateOnWorldAxis(
+                    floorNormal,
+                    -angle - spriteOffset
+                );
             }
         }
     );
 
     return () => {
         for (const [id, object] of renderableInstancesMap) {
-            scene.remove(object);
+            scene.remove(object.mesh);
         }
         systemCleanup();
         renderable_query.dispose();

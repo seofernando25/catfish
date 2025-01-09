@@ -24,6 +24,10 @@ import { playerInfoSystem } from "./systems/playerInfo";
 import { playerMovementSystem } from "./systems/playerMovement";
 import { skyboxSystem } from "./systems/skybox";
 import { spriteRenderingSystem } from "./systems/spriteRendering";
+import pako from "pako";
+import { deserializeObject } from "@catfish/common/serializer.js";
+import { movementSystem } from "@catfish/common/systems/movementSystem.js";
+import { playerUseSystem } from "./systems/playerUse";
 
 document.addEventListener("contextmenu", function (event) {
     event.preventDefault(); // Prevent the default right-click menu
@@ -100,9 +104,14 @@ const game = async () => {
         world
     );
 
-    const cleanUpPlayerMovementSystem = playerMovementSystem();
+    const cleanUpMovementSystem = movementSystem(world); // Client side prediction
+    const cleanUpPlayerMovementSystem = playerMovementSystem(
+        world,
+        loginInfo.username
+    );
+    const cleanUpPlayerUseSystem = playerUseSystem();
 
-    const p = skyboxSystem(globalScene);
+    const cleanUpSkyboxSystem = skyboxSystem(globalScene);
 
     // endregion
 
@@ -112,8 +121,11 @@ const game = async () => {
     });
 
     socket.on("add_entity", (entity, ack) => {
-        console.log("Adding entity", entity);
-        world.addEntity(entity);
+        const decompressed = pako.ungzip(entity);
+        const deserialized = deserializeObject(decompressed) as any;
+
+        world.addEntity(deserialized);
+
         ack();
     });
 
@@ -124,7 +136,10 @@ const game = async () => {
     });
 
     socket.on("update_entity", (entity, ack) => {
-        world.patchEntity(entity);
+        const decompressed = pako.ungzip(entity);
+        const deserialized = deserializeObject(decompressed) as any;
+
+        world.patchEntity(deserialized);
         ack();
     });
 
@@ -142,6 +157,9 @@ const game = async () => {
         cleanUpCameraSystem();
         cleanUpPlayerMovementSystem();
         cleanUpChunkRenderingSystem();
+        cleanUpMovementSystem();
+        cleanUpPlayerUseSystem();
+        cleanUpSkyboxSystem();
     };
 };
 

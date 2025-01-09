@@ -28,11 +28,11 @@ export const causticsRenderingSystem = (scene: Scene, world: ECSWorld) => {
         mesh.material.uniforms["scale2"].value = dim;
 
         mesh.rotation.x = -Math.PI / 2;
-        mesh.position.x += entity.dim / 2;
-        mesh.position.z += entity.dim / 2;
         mesh.position.x = entity.x;
         mesh.position.z = entity.z;
         mesh.position.y = entity.y;
+        mesh.position.x += entity.dim / 2;
+        mesh.position.z += entity.dim / 2;
         scene.add(mesh);
 
         const cleanUpUniformUpdate = effect(() => {

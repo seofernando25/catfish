@@ -1,8 +1,10 @@
 import { io, Socket } from "socket.io-client";
 
 import stats from "./stats";
-import type { ClientToServerEvents } from "@catfish/common/events/client.js";
-import type { ServerToClientEvents } from "@catfish/common/events/server.js";
+import type {
+    ServerToClientEvents,
+    ClientToServerEvents,
+} from "@catfish/common/events/index.js";
 
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(
     document.location.origin,

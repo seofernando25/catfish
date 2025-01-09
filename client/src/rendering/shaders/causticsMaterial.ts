@@ -1,14 +1,10 @@
-import { globalTicker } from "@catfish/common/Ticker.js";
-import { effect } from "@preact/signals";
 import {
+    AdditiveBlending,
+    Color,
     ShaderMaterial,
+    UniformsLib,
     UniformsUtils,
     Vector2,
-    UniformsLib,
-    AdditiveBlending,
-    NormalBlending,
-    MultiplyBlending,
-    Color,
 } from "three";
 
 export const causticsMaterial = new ShaderMaterial({
@@ -30,11 +26,9 @@ export const causticsMaterial = new ShaderMaterial({
             mainBlue: { value: new Color(0.1, 0.2, 0.3) },
             darkBlue: { value: new Color(0.08, 0.18, 0.28) },
             foamColor: { value: new Color(0.9, 0.9, 0.9) },
-        },
-        {
             causticsOffset: { value: new Vector2(0, 0) },
+            opacity: { value: 0.95 },
         },
-        UniformsLib.common,
     ]),
     vertexShader: `
         varying vec2 vUv;
@@ -149,7 +143,7 @@ export const causticsMaterial = new ShaderMaterial({
             gl_FragColor = vec4(finalColor, opacity);
         }
     `,
-    transparent: true,
     depthWrite: false,
-    opacity: 0.9,
+    transparent: true,
+    side: 2,
 });

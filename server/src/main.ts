@@ -2,6 +2,8 @@ import { catBlueprint } from "@catfish/common/data/cat.ts";
 import {
     mixinPlayerSocketControlled,
     PlayerControlledSchema,
+    positionMixin,
+    renderSpriteMixin,
 } from "@catfish/common/data/entity.ts";
 import {
     entityQuery,
@@ -10,15 +12,11 @@ import {
 } from "@catfish/common/ecs.ts";
 import { Server } from "socket.io";
 
+import { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants.ts";
 import { newFishSpot } from "@catfish/common/data/fishing.ts";
-import type { ClientToServerEvents } from "@catfish/common/events/client.ts";
-import type {
-    InterServerEvents,
-    ServerClientSocket,
-    ServerSocketInstance,
-    ServerToClientEvents,
-    SocketData,
-} from "@catfish/common/events/server.ts";
+import { newPrimitiveObject } from "@catfish/common/data/objectData.ts";
+
+import { movementSystem } from "@catfish/common/systems/movementSystem.ts";
 import { Ticker } from "@catfish/common/Ticker.ts";
 import { effect } from "@preact/signals";
 import { is } from "valibot";
@@ -29,15 +27,14 @@ import {
     type EmitAddEntityResult,
 } from "./emits";
 import { addChunkDisplacements } from "./system/chunkSystem";
-import { movementSystem } from "./system/movementSystem";
+import { mutateDesireDirSystem } from "./system/mutateDesireDirSystem";
+import type {
+    ServerSocketInstance,
+    ServerClientSocket,
+} from "@catfish/common/events/index.js";
 
 export function baseServer() {
-    const io = new Server<
-        ClientToServerEvents,
-        ServerToClientEvents,
-        InterServerEvents,
-        SocketData
-    >({
+    const io = new Server({
         // 10MB max buffer size
         maxHttpBufferSize: 1e8,
         cors: {
@@ -103,14 +100,11 @@ export async function createServerWorld(server: ReturnType<typeof baseServer>) {
     });
 
     const fishingSpot = newFishSpot(10);
+    fishingSpot.dim = CHUNK_SIZE * WORLD_ZONE_DIM;
     fishingSpot.x = 0;
+    fishingSpot.y = 0;
     fishingSpot.z = 0;
     ecs.addEntity(fishingSpot);
-
-    const fishingSpot2 = newFishSpot(50);
-    fishingSpot2.x = 80;
-    fishingSpot2.z = 0;
-    ecs.addEntity(fishingSpot2);
 
     effect(() => {
         ticker.currentTick.value;
@@ -152,6 +146,12 @@ export async function createServerWorld(server: ReturnType<typeof baseServer>) {
 
             // Initialize player entity
             player.name = username;
+
+            // 233.20
+            // 79.78
+            player.x = 255.62;
+            player.y = 0.5;
+            player.z = 128.12;
 
             const playerEntityCleanup = ecs.addEntity(player);
             onDisconnect.push(playerEntityCleanup);
@@ -207,11 +207,27 @@ export async function createServerWorld(server: ReturnType<typeof baseServer>) {
                 });
                 onDisconnect.push(lifecycleCleanup);
 
-                // region Handle Move
-                sock.on("action_move", (dir: { x: number; y: number }) => {
-                    player.desireDir = dir;
+                const cleanUpDesireDirSystem = mutateDesireDirSystem(
+                    ecs,
+                    player,
+                    sock
+                );
+                onDisconnect.push(cleanUpDesireDirSystem);
+
+                // region Handle use
+                sock.on("action_use", (shouldUse) => {
+                    if (shouldUse) {
+                        const entity = renderSpriteMixin(
+                            positionMixin(newPrimitiveObject())
+                        );
+                        entity.spriteSrc = "bobber";
+                        entity.x = player.x;
+                        entity.y = player.y;
+                        entity.z = player.z;
+                        entity.spriteScale = 0.25;
+                        ecs.addEntity(entity);
+                    }
                 });
-                // endregion
 
                 // endregion
             });

@@ -1,5 +1,6 @@
-import type { PrimitiveObject } from "@catfish/common/data/objectData.js";
-import type { ServerClientSocket } from "@catfish/common/events/server.js";
+import type { PrimitiveObject } from "@catfish/common/data/objectData.ts";
+import type { ServerClientSocket } from "@catfish/common/events/index.js";
+import { serializeObject } from "@catfish/common/serializer.ts";
 
 type EmitAddEntityWithRetryOptions = {
     socket: ServerClientSocket;
@@ -32,34 +33,34 @@ setInterval(() => {
     });
 }, sendQueueInterval);
 
+function entityToArrayBuffer(entity: PrimitiveObject): ArrayBuffer {
+    const serialized = serializeObject(entity);
+    const compressed = Bun.gzipSync(serialized);
+    return new Uint8Array(compressed).buffer as ArrayBuffer;
+}
+
 async function emitAddEntityWithRetryImpl({
     socket,
     entity,
     maxRetries = 5,
     timeout = 2000,
 }: EmitAddEntityWithRetryOptions): Promise<EmitAddEntityResult> {
-    const entityJson = JSON.stringify(entity);
-    // estimate the size of the entity in bytes
-    const entitySize = new TextEncoder().encode(entityJson).length;
-    const mbSize = entitySize / 1024 / 1024;
-    if (mbSize > 0.5) {
-        console.warn(
-            `Entity size is ${mbSize.toFixed(2)}MB. Consider reducing the size.`
-        );
-    }
-
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
             await new Promise<void>((resolve, reject) => {
                 socket
                     .timeout(timeout)
-                    .emit("add_entity", entity, (err?: Error) => {
-                        if (err) {
-                            reject(err);
-                        } else {
-                            resolve();
+                    .emit(
+                        "add_entity",
+                        entityToArrayBuffer(entity),
+                        (err?: Error) => {
+                            if (err) {
+                                reject(err);
+                            } else {
+                                resolve();
+                            }
                         }
-                    });
+                    );
             });
             return { success: true, attempts: attempt + 1 };
         } catch (err) {
@@ -72,7 +73,12 @@ async function emitAddEntityWithRetryImpl({
                     attempts: maxRetries,
                     error: err instanceof Error ? err.message : "Unknown error",
                 };
+            } else {
+                console.error(
+                    `"add_entity" failed on attempt ${attempt + 1}: ${err}`
+                );
             }
+
             // Optional: Add delay before retrying
             await new Promise((res) => setTimeout(res, 500));
         }
@@ -159,13 +165,17 @@ export async function emitUpdateEntityWithRetry({
             await new Promise<void>((resolve, reject) => {
                 socket
                     .timeout(timeout)
-                    .emit("update_entity", entity, (err?: Error) => {
-                        if (err) {
-                            reject(err);
-                        } else {
-                            resolve();
+                    .emit(
+                        "update_entity",
+                        entityToArrayBuffer(entity),
+                        (err?: Error) => {
+                            if (err) {
+                                reject(err);
+                            } else {
+                                resolve();
+                            }
                         }
-                    });
+                    );
             });
             return { success: true, attempts: attempt + 1 };
         } catch (err) {

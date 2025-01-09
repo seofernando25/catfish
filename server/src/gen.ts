@@ -1,60 +1,110 @@
 import wk from "@catfish/assets/wk.png";
+import { CHUNK_SIZE, WORLD_ZONE_DIM } from "@catfish/common/constants.ts";
 import CanvasKitInit from "canvaskit-wasm";
-import { WORLD_ZONE_DIM, CHUNK_SIZE } from "@catfish/common/constants.ts";
 
+const TERRAIN_HEIGHT_SCALE = 10;
+
+// Initialize CanvasKit
 const CanvasKit = await CanvasKitInit();
 
 export const genWorldHeightMapsFromImage = async () => {
+    // Step 1: Load and decode the image
     const wkBytes = await Bun.file(wk).arrayBuffer();
     const wkImage = CanvasKit.MakeImageFromEncoded(wkBytes);
     if (!wkImage) {
+        console.error("Failed to create image from encoded bytes.");
         return;
-    }
-
-    const world: number[][] = new Array(WORLD_ZONE_DIM * WORLD_ZONE_DIM);
-    // set world to be an array of arrays initialized to 0
-    for (let i = 0; i < world.length; i++) {
-        world[i] = new Array(CHUNK_SIZE * CHUNK_SIZE).fill(99);
     }
 
     const imgWidth = wkImage.width();
     const imgHeight = wkImage.height();
 
+    // Step 2: Read all pixel data at once (RGBA format)
+    const imgData = wkImage.readPixels(0, 0, {
+        width: imgWidth,
+        height: imgHeight,
+        colorType: CanvasKit.ColorType.RGBA_8888,
+        alphaType: CanvasKit.AlphaType.Unpremul,
+        colorSpace: CanvasKit.ColorSpace.SRGB,
+    });
+
+    if (!imgData) {
+        console.error("Failed to read pixel data from image.");
+        return;
+    }
+
+    // Ensure imgData is a Uint8Array for typed array operations
+    const pixels = new Uint8ClampedArray(imgData);
+
+    // Step 3: Initialize a Float32Array for internal computations
+    const totalZones = WORLD_ZONE_DIM * WORLD_ZONE_DIM;
+    const totalChunks = CHUNK_SIZE * CHUNK_SIZE;
+    const totalPoints = totalZones * totalChunks;
+    const world = new Float32Array(totalPoints);
+
+    // Step 4: Precompute scaling factors to avoid repeated calculations
+    const invWorldTotalDim = 1 / (WORLD_ZONE_DIM * CHUNK_SIZE);
+
+    // Step 5: Iterate through each zone and chunk to compute height values
     for (let zoneX = 0; zoneX < WORLD_ZONE_DIM; zoneX++) {
+        const xOff = zoneX * CHUNK_SIZE;
+
         for (let zoneY = 0; zoneY < WORLD_ZONE_DIM; zoneY++) {
-            const zoneIdx = zoneX * WORLD_ZONE_DIM + zoneY;
-            const zone = world[zoneIdx];
-            const xOff = zoneX * CHUNK_SIZE;
             const yOff = zoneY * CHUNK_SIZE;
+            const zoneIdx = zoneX * WORLD_ZONE_DIM + zoneY;
+            const zoneStartIdx = zoneIdx * totalChunks;
+
             for (let x = 0; x < CHUNK_SIZE; x++) {
+                const worldX = x + xOff;
+                // Calculate normalized X coordinate
+                const xNorm = worldX * invWorldTotalDim;
+                const imgXFloat = xNorm * imgWidth;
+                // Fast floor operation using bitwise OR
+                const imgX = Math.min(imgXFloat | 0, imgWidth - 1);
+
                 for (let y = 0; y < CHUNK_SIZE; y++) {
-                    // Normalize x and y to be in the range [0, 1]
-                    const xNorm = (x + xOff) / (CHUNK_SIZE * WORLD_ZONE_DIM);
-                    const yNorm = (y + yOff) / (CHUNK_SIZE * WORLD_ZONE_DIM);
+                    const worldY = y + yOff;
+                    // Calculate normalized Y coordinate
+                    const yNorm = worldY * invWorldTotalDim;
+                    const imgYFloat = yNorm * imgHeight;
+                    const imgY = Math.min(imgYFloat | 0, imgHeight - 1);
 
-                    // Sample the image at the normalized coordinates
-                    const imgX = Math.floor(imgWidth * xNorm);
-                    const imgY = Math.floor(imgHeight * yNorm);
+                    // Compute the index for the pixel data
+                    const pixelIdx = (imgY * imgWidth + imgX) * 4; // RGBA
 
-                    // Read the pixel at the calculated coordinates
-                    const pixelData = wkImage.readPixels(imgX, imgY, {
-                        width: 1,
-                        height: 1,
-                        colorType: CanvasKit.ColorType.RGBA_8888,
-                        alphaType: CanvasKit.AlphaType.Unpremul,
-                        colorSpace: CanvasKit.ColorSpace.SRGB,
-                    }) || [0, 0, 0, 0];
-                    const grayscale =
-                        (pixelData[0] * 1) / 3 +
-                        (pixelData[1] * 1) / 3 +
-                        (pixelData[2] * 1) / 3;
+                    // Extract RGB values
+                    const r = pixels[pixelIdx];
+                    const g = pixels[pixelIdx + 1];
+                    const b = pixels[pixelIdx + 2];
 
-                    // Set the zone value based on the pixel color
-                    zone[x * CHUNK_SIZE + y] = (grayscale / 255) * 30 - 15;
+                    // Compute grayscale value
+                    const grayscale = (r + g + b) / 3;
+
+                    // Map grayscale to height
+                    const height =
+                        (grayscale / 255) * TERRAIN_HEIGHT_SCALE -
+                        TERRAIN_HEIGHT_SCALE / 2;
+
+                    // Assign to the world array
+                    const worldIdx = zoneStartIdx + x * CHUNK_SIZE + y;
+                    world[worldIdx] = height;
                 }
             }
         }
     }
+    // Step 6: Convert Float32Array to number[][] for the return type
+    // const worldArray: number[][] = new Array(totalZones);
+    // for (let zoneIdx = 0; zoneIdx < totalZones; zoneIdx++) {
+    //     const start = zoneIdx * totalChunks;
+    //     const end = start + totalChunks;
+    //     // Manually convert Float32Array segment to number[] for better performance
+    //     const zoneArray = new Array<number>(totalChunks);
+    //     for (let i = 0; i < totalChunks; i++) {
+    //         zoneArray[i] = world[start + i];
+    //     }
+    //     worldArray[zoneIdx] = zoneArray;
+    // }
 
+    // return worldArray;
     return world;
 };

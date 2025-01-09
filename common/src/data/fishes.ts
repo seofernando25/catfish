@@ -2,8 +2,6 @@ import salmonSprite from "@catfish/assets/fishes/Sammy_Salmon.png";
 import { baseAnimalBlueprint } from "./entity";
 import { number, object, type InferOutput } from "valibot";
 
-// spriteSrc: string(),
-
 export const FishSchema = object({
     sizeAverage: number(),
     sizeDeviation: number(),

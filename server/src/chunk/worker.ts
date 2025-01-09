@@ -1,5 +1,5 @@
 import { sample } from "../../../common/src/procedural/sampler";
-import type { WorkerTaskData, ChunkTaskResult } from "./ChunkWorkerManager";
+import type { ChunkTaskResult, WorkerTaskData } from "./ChunkWorkerManager";
 
 self.onmessage = (e: MessageEvent<WorkerTaskData>) => {
     const { taskId, chunkX, chunkY, chunkSize } = e.data;

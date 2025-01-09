@@ -1,7 +1,11 @@
+import {
+    DesiredDirectionSchema,
+    RenderSpriteSchema,
+} from "@catfish/common/data/entity.js";
+import { entityQuery, type ECSWorld } from "@catfish/common/ecs.js";
 import { computed, effect, signal } from "@preact/signals";
+import { custom, is, object, pipe, string } from "valibot";
 import { socket } from "../socket";
-import { camera } from "../rendering/camera";
-import { Vector3 } from "three";
 import { cameraDir } from "./camera";
 
 const actions = {
@@ -68,8 +72,23 @@ window.addEventListener("keyup", (e) => {
     }
 });
 
-export const playerMovementSystem = () => {
-    console.log("playerMovementSystem");
+export const playerMovementSystem = (world: ECSWorld, username: string) => {
+    const playerQuery = entityQuery(world.onWorldLifecycle, (entity) => {
+        return (
+            is(DesiredDirectionSchema, entity) &&
+            is(RenderSpriteSchema, entity) &&
+            is(
+                object({
+                    name: pipe(
+                        string(),
+                        custom((v) => v === username)
+                    ),
+                }),
+                entity
+            )
+        );
+    });
+
     const xDir = computed(() => actions.right.value - actions.left.value);
     const yDir = computed(() => actions.down.value - actions.up.value);
     const angle = computed(() => cameraDir.value);
@@ -91,7 +110,24 @@ export const playerMovementSystem = () => {
         });
     });
 
+    const system = world.addSystem(playerQuery, (entities) => {
+        let count = 0;
+        for (const entity of entities) {
+            count++;
+            entity.desireDir.x = rotatedY.value;
+            entity.desireDir.y = -rotatedX.value;
+            entity.spriteInterpolation = 0.5;
+        }
+        if (count > 1) {
+            console.error(
+                "More than one player entity found for username",
+                username
+            );
+        }
+    });
+
     return () => {
         disposeNetworkRequests();
+        system();
     };
 };

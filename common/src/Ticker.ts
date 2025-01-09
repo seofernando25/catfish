@@ -36,7 +36,7 @@ export class Ticker {
             const ticksBehind = expectedTicks - this.currentTick.value;
 
             // If we're processing more than one tick at once, log a warning
-            if (ticksBehind > 10) {
+            if (ticksBehind > 5) {
                 console.warn(
                     `Ticker is running too slow. Processing ${ticksBehind} ticks to catch up.`
                 );
