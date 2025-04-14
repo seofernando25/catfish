@@ -7,15 +7,28 @@ import { computed, effect, signal } from "@preact/signals";
 import { custom, is, object, pipe, string } from "valibot";
 import { socket } from "../socket";
 import { cameraDir } from "./camera";
+import { lvsDevice } from "../rumble";
 
 const actions = {
     use: signal(0),
 };
 
-// WASD and Arrow keys
+let useBusy = false;
 window.addEventListener("keydown", (e) => {
+    // Use key pressed
     if (e.key === "f" || e.key === "F") {
         actions.use.value = 1;
+
+        (async () => {
+            if (lvsDevice.value && !useBusy) {
+                useBusy = true;
+                await lvsDevice.value.vibrate(0);
+                await lvsDevice.value.vibrate(0.5);
+                await new Promise((resolve) => setTimeout(resolve, 50));
+                await lvsDevice.value.vibrate(0);
+                useBusy = false;
+            }
+        })();
     }
 });
 

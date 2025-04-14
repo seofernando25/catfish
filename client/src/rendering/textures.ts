@@ -3,19 +3,16 @@ import atlasData from "@catfish/assets/spritesheet.json";
 import spritesheetPath from "@catfish/assets/spritesheet.png";
 import titleSvgPath from "@catfish/assets/title.svg";
 import {
-    AmbientLight,
-    AxesHelper,
     Color,
     Group,
     Mesh,
     MeshBasicMaterial,
-    MeshStandardMaterial,
     NearestFilter,
     PlaneGeometry,
     ShapeGeometry,
     SRGBColorSpace,
     TextureLoader,
-    Vector3,
+    Vector3
 } from "three";
 import { SVGLoader } from "three/examples/jsm/Addons.js";
 import { screenSpaceGradientMaterial } from "./shaders/screenSpaceGradient";

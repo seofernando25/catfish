@@ -1,36 +1,21 @@
 import { effect } from "@preact/signals";
-import "./app.css";
-
-import { newECSWorld } from "@catfish/common/ecs.js";
-import { globalTicker } from "@catfish/common/Ticker.js";
 import {
     Mesh,
     MeshBasicMaterial,
     OrthographicCamera,
-    PerspectiveCamera,
     PlaneGeometry,
 } from "three";
-import { getDebugFlags } from "./debugFlags";
+import "./app.css";
 import { loginSeq, menuSeq } from "./menu";
+import { showMenu } from "./menu/Menu";
+import { navigateToScreen, setUsername, type MenuScreen } from "./menu/state/menuState";
 import { camera } from "./rendering/camera";
 import { globalScene } from "./rendering/renderer";
 import { getSubTextureFromAtlas, spritesheetData } from "./rendering/textures";
 import { windowAspect } from "./rendering/window";
-import { socket } from "./socket";
-import { cameraRotationSystem } from "./systems/camera";
-import { causticsRenderingSystem } from "./systems/causticsRendering";
-import { chunkRenderingSystem } from "./systems/chunkRendering";
-import { playerInfoSystem } from "./systems/playerInfo";
-import { playerMovementSystem } from "./systems/playerMovement";
-import { skyboxSystem } from "./systems/skybox";
-import { spriteRenderingSystem } from "./systems/spriteRendering";
-import pako from "pako";
-import { deserializeObject } from "@catfish/common/serializer.js";
-import { movementSystem } from "@catfish/common/systems/movementSystem.js";
-import { playerUseSystem } from "./systems/playerUse";
 
 document.addEventListener("contextmenu", function (event) {
-    event.preventDefault(); // Prevent the default right-click menu
+    event.preventDefault();
 });
 
 const threeScene = globalScene;
@@ -54,120 +39,48 @@ const addMenuBackground = () => {
     };
 };
 
-// Make sure camera covers title screen vertically
+async function startGameSequence() {
+    // region Setup sequence
+    camera.value = new OrthographicCamera(-1, 1, 0.5, -0.5, 0.1, 1000);
+    camera.value.position.z = 1;
+    const disposeMenu = addMenuBackground();
+    const computeWindowAspectEffect = effect(() => {
+        if (camera.value instanceof OrthographicCamera) {
+            const horizontalScale = windowAspect.value;
+            camera.value.left = -0.5 * horizontalScale;
+            camera.value.right = 0.5 * horizontalScale;
+            camera.value.updateProjectionMatrix();
+        }
+    });
 
-// region Title screen setup
 
-// region Setup sequennce
 
-camera.value = new OrthographicCamera(-1, 1, 0.5, -0.5, 0.1, 1000);
-camera.value.position.z = 1;
-const disposeMenu = addMenuBackground();
-const computeWindowAspectEffect = effect(() => {
-    if (camera.value instanceof OrthographicCamera) {
-        const horizontalScale = windowAspect.value;
-        camera.value.left = -0.5 * horizontalScale;
-        camera.value.right = 0.5 * horizontalScale;
-        camera.value.updateProjectionMatrix();
+
+    try {
+        // Step 1: Handle login
+        const loginInfo = await loginSeq();
+
+        if (!loginInfo.success) {
+            console.error("Login failed:", loginInfo.message);
+            return;
+        }
+
+        if (!loginInfo.username) {
+            console.error("No username provided after login");
+            return;
+        }
+
+        // Step 2: Show menu sequence first
+        await menuSeq();
+
+        // Step 3: Update menu state with login info
+        setUsername(loginInfo.username);
+        navigateToScreen(localStorage.getItem('menuScreen') as MenuScreen || 'menu');
+        showMenu();
+    } catch (error) {
+        console.error("Error during game sequence:", error);
     }
-});
-
-const loginInfo = await loginSeq();
-let nextScene = "";
-if (!getDebugFlags().skipLogin.value) {
-    nextScene = await menuSeq();
-} else {
-    console.log("Skipping Menu");
-    nextScene = "game";
-}
-disposeMenu();
-computeWindowAspectEffect();
-// endregion
-
-// Set up a simple scene
-
-const game = async () => {
-    const world = newECSWorld();
-
-    // Update camera
-    camera.value = new PerspectiveCamera(75, windowAspect.value, 0.1, 1000);
-
-    const cleanUpCausticsSystem = causticsRenderingSystem(globalScene, world);
-    const cleanUpRendering = spriteRenderingSystem(globalScene, world);
-    const cleanUpCameraSystem = cameraRotationSystem(world, loginInfo.username);
-    const cleanUpDebugPlayerInfoSystem = playerInfoSystem(
-        world,
-        loginInfo.username
-    );
-    const cleanUpChunkRenderingSystem = chunkRenderingSystem(
-        globalScene,
-        world
-    );
-
-    const cleanUpMovementSystem = movementSystem(world); // Client side prediction
-    const cleanUpPlayerMovementSystem = playerMovementSystem(
-        world,
-        loginInfo.username
-    );
-    const cleanUpPlayerUseSystem = playerUseSystem();
-
-    const cleanUpSkyboxSystem = skyboxSystem(globalScene);
-
-    // endregion
-
-    effect(() => {
-        globalTicker.currentTick.value;
-        world.tick();
-    });
-
-    socket.on("add_entity", (entity, ack) => {
-        const decompressed = pako.ungzip(entity);
-        const deserialized = deserializeObject(decompressed) as any;
-
-        world.addEntity(deserialized);
-
-        ack();
-    });
-
-    socket.on("remove_entity", (entity, ack) => {
-        console.log("Removing entity", entity);
-        world.removeEntity(entity);
-        ack();
-    });
-
-    socket.on("update_entity", (entity, ack) => {
-        const decompressed = pako.ungzip(entity);
-        const deserialized = deserializeObject(decompressed) as any;
-
-        world.patchEntity(deserialized);
-        ack();
-    });
-
-    const startT = Date.now();
-    console.log("Emitting spawn");
-    socket.emit("spawn", () => {
-        const delta = Date.now() - startT;
-        console.log("Spawned in", delta / 1000, "seconds");
-    });
-
-    return () => {
-        cleanUpDebugPlayerInfoSystem();
-        cleanUpRendering();
-        cleanUpCausticsSystem();
-        cleanUpCameraSystem();
-        cleanUpPlayerMovementSystem();
-        cleanUpChunkRenderingSystem();
-        cleanUpMovementSystem();
-        cleanUpPlayerUseSystem();
-        cleanUpSkyboxSystem();
-    };
-};
-
-console.log("Next scene", nextScene);
-if (nextScene === "game") {
-    game();
-} else {
-    console.error("Unknown scene", nextScene);
 }
 
-// game();
+// Start the game sequence
+startGameSequence();

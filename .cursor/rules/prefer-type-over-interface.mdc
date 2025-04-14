@@ -1,0 +1,28 @@
+---
+description: 
+globs: *.ts,*.tsx
+alwaysApply: false
+---
+ # Prefer Type Over Interface Rule
+
+Consider using `type` instead of `interface` for this type definition. When you need to merging or inherit use intersections.
+
+## Examples
+
+### ❌ Bad
+```typescript
+interface UserData {
+    id: string;
+    name: string;
+    age: number;
+}
+```
+
+### ✅ Good
+```typescript
+type UserData = {
+    id: string;
+    name: string;
+    age: number;
+};
+```

@@ -1,0 +1,115 @@
+---
+description: 
+globs: *.tsx
+alwaysApply: false
+---
+ # Preact Signals Rule
+
+## Description
+Enforces using `useSignal` instead of `signal` inside Preact components. This ensures proper component lifecycle management and state isolation.
+
+
+## Message
+Use useSignal() instead of signal() inside Preact components
+
+## Severity
+warning
+
+## Check
+```typescript
+(context) => {
+    // Only check inside .tsx files
+    if (!context.filePath.endsWith('.tsx')) {
+        return false;
+    }
+
+    // Get the file content
+    const content = context.getFileContent();
+    
+    // Check if we're inside a component (function that returns JSX)
+    const isInsideComponent = /function\s+\w+\s*\([^)]*\)\s*:\s*JSX\.Element\s*{/.test(content);
+    
+    // Check if we're inside a component (arrow function that returns JSX)
+    const isInsideArrowComponent = /const\s+\w+\s*=\s*\([^)]*\)\s*:\s*JSX\.Element\s*=>\s*{/.test(content);
+    
+    // If we're inside a component and find signal(), trigger the rule
+    return (isInsideComponent || isInsideArrowComponent) && /signal\(/.test(content);
+}
+```
+
+## Fix
+```typescript
+(context) => {
+    // Replace signal() with useSignal()
+    return context.replace(/signal\(/g, 'useSignal(');
+}
+```
+
+## Examples
+
+### ❌ Bad
+```typescript
+function MyComponent(): JSX.Element {
+    const count = signal(0);  // Using signal() inside component
+    return <div>{count.value}</div>;
+}
+```
+
+### ✅ Good
+```typescript
+function MyComponent(): JSX.Element {
+    const count = useSignal(0);  // Using useSignal() inside component
+    return <div>{count.value}</div>;
+}
+```
+
+## When to use `signal` instead
+
+Use `signal()` (not `useSignal()`) for:
+- Global state
+- State shared between components
+- State outside of components
+- Utility functions
+- Services
+- Store implementations
+
+## Caveats
+
+### ❌ Bad
+```ts
+// const menuState = { ..., currentScreen: signal(...) }
+
+export function Menu(): JSX.Element {
+    const currentScreen = useSignal(menuState.currentScreen.value); // useSignal and subscription is unecessary
+
+    // Subscribe to menuState changes
+    menuState.currentScreen.subscribe((newScreen) => {
+        currentScreen.value = newScreen;
+    });
+
+    switch (currentScreen.value) {
+        case 'about':
+            return <AboutScreen />;
+        case 'main-menu':
+            return <MainMenuScreen />;
+        default:
+            return <MainMenuScreen />;
+    }
+}
+```
+
+
+### ✅ Good
+```ts
+export function Menu(): JSX.Element {
+    switch (menuState.currentScreen.value) { /// using it like this just works
+        case 'about':
+            return <AboutScreen />;
+        case 'main-menu':
+            return <MainMenuScreen />;
+        default:
+            return <MainMenuScreen />;
+    }
+}
+```
+

@@ -1,0 +1,45 @@
+---
+description: creating new rules automatically
+globs: 
+alwaysApply: false
+---
+ # Rule Creation Guidelines
+
+All rules in the `.cursor/rules` directory must be created as `.mdc` (Markdown Cursor) files.
+
+They follow the Markdown spec, therefore  include human readable documentation for the specific codebase rule.
+
+## Rule Structure
+
+Each rule file should follow this structure:
+
+```markdown
+# Rule Name
+
+## Description
+Brief description of what the rule does and why it's important.
+
+## Check
+Description of whaat  we want to see its being followed or violated
+
+## Fix
+General steps to fix it
+
+## Examples (Optional)
+
+### ❌ Bad
+```typescript
+// Example of code that violates the rule (if applicable)
+```
+
+### ✅ Good
+```typescript
+// Example of code that follows the rule
+```
+```
+
+## Implementation Notes
+
+- Rules should be self-documenting
+- Include clear examples of violations and fixes
+- Keep the implementation simple and focused

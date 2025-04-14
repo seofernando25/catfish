@@ -1,0 +1,43 @@
+.arcade-menu {
+	height: 100%;
+	width: 100%;
+}
+
+.arcade-title {
+	font-size: 8rem;
+	line-height: 1;
+	color: #000;
+	text-align: center;
+	margin: 0 auto;
+}
+
+/* Game bubbles positioning */
+.flappy-fish-bubble {
+	position: absolute;
+	top: 50%;
+	left: 10%;
+}
+
+.glow-trail-bubble {
+	position: absolute;
+	top: 55%;
+	left: 40%;
+}
+
+.reflex-catch-bubble {
+	position: absolute;
+	top: 40%;
+	right: 10%;
+}
+
+.back-bubble {
+	position: absolute;
+	bottom: 0%;
+	left: 0%;
+}
+
+/* Make sure the bubble labels handle line breaks */
+.bubble-label {
+	white-space: pre-line;
+	text-align: center;
+}

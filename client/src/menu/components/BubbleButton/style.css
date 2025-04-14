@@ -1,0 +1,28 @@
+.bubble-button {
+	width: 150px;
+	height: 150px;
+	border: none;
+	background-color: transparent;
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+	cursor: pointer;
+	position: relative;
+	transition: transform 0.3s ease;
+	padding: 0;
+}
+
+.bubble-button:hover {
+	transform: scale(1.1);
+}
+
+.bubble-label {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	font-size: 24px;
+	font-weight: bold;
+	text-align: center;
+	pointer-events: none;
+}

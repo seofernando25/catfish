@@ -4,6 +4,7 @@
         "target": "ESNext",
         "module": "ESNext",
         "jsx": "react-jsx",
+        "jsxImportSource": "preact",
         "allowJs": true,
         "resolveJsonModule": true,
 
